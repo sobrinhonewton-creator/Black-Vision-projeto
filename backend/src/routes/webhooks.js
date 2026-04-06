@@ -1,8 +1,5 @@
 /**
  * routes/webhooks.js
- * POST /api/webhooks/stripe
- * POST /api/webhooks/mercadopago
- * GET  /api/webhooks/mercadopago  ← validação do painel MP
  */
 
 import { Router } from "express";
@@ -12,13 +9,10 @@ import { updateTransactionStatus } from "../services/transactionLog.js";
 
 const router = Router();
 
-/* ─── Stripe Webhook ─────────────────────────────────────── */
+/* ─── Stripe ─────────────────────────────────────────────── */
 router.post("/stripe", async (req, res) => {
   const signature = req.headers["stripe-signature"];
-
-  if (!signature) {
-    return res.status(400).json({ message: "stripe-signature ausente" });
-  }
+  if (!signature) return res.status(400).json({ message: "stripe-signature ausente" });
 
   let event;
   try {
@@ -28,24 +22,20 @@ router.post("/stripe", async (req, res) => {
     return res.status(400).json({ message: err.message });
   }
 
-  console.log(`[Webhook Stripe] ${event.type}`);
-
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object;
-        await updateTransactionStatus(session.id, "approved", {
-          paymentIntent: session.payment_intent,
-          customerEmail: session.customer_email,
-          amount:        session.amount_total,
+        const s = event.data.object;
+        await updateTransactionStatus(s.id, "approved", {
+          paymentIntent: s.payment_intent,
+          customerEmail: s.customer_email,
+          amount: s.amount_total,
         });
         break;
       }
-      case "checkout.session.expired": {
-        const session = event.data.object;
-        await updateTransactionStatus(session.id, "cancelled");
+      case "checkout.session.expired":
+        await updateTransactionStatus(event.data.object.id, "cancelled");
         break;
-      }
       case "payment_intent.payment_failed": {
         const pi = event.data.object;
         await updateTransactionStatus(pi.id, "rejected", {
@@ -60,8 +50,6 @@ router.post("/stripe", async (req, res) => {
         });
         break;
       }
-      default:
-        break;
     }
   } catch (err) {
     console.error("[Webhook Stripe] Handler error:", err.message);
@@ -70,40 +58,48 @@ router.post("/stripe", async (req, res) => {
   res.json({ received: true });
 });
 
-/* ─── Mercado Pago — GET (validação do painel MP) ────────── */
-// O painel do MP faz um GET com ?topic=payment&id=123456 para testar
-// Se não responder 200, o painel marca como falha — mas NÃO afeta pagamentos reais
+/* ─── Mercado Pago — GET (validação do painel) ───────────── */
 router.get("/mercadopago", (req, res) => {
-  console.log("[Webhook MP] Validação GET recebida:", req.query);
+  console.log("[Webhook MP] GET validação:", req.query);
   res.status(200).json({ received: true });
 });
 
 /* ─── Mercado Pago — POST (notificações reais) ───────────── */
 router.post("/mercadopago", async (req, res) => {
-  const signature = req.headers["x-signature"];
-  let body;
+  // Responde 200 IMEDIATAMENTE — o MP considera falha se demorar > 5s
+  // e reenvia até 3x se receber != 200
+  res.status(200).json({ received: true });
 
+  // Processa de forma assíncrona após responder
   try {
-    body = JSON.parse(req.body.toString());
-  } catch {
-    return res.status(400).json({ message: "Body inválido" });
-  }
+    const signature = req.headers["x-signature"];
 
-  let event;
-  try {
-    event = await processMPWebhook(body, signature);
-  } catch (err) {
-    console.error("[Webhook MP] Verificação falhou:", err.message);
-    return res.status(400).json({ message: err.message });
-  }
+    // Body pode chegar como Buffer (raw) ou já parseado (json)
+    let body;
+    if (Buffer.isBuffer(req.body)) {
+      const raw = req.body.toString("utf8");
+      if (!raw || raw.trim() === "") {
+        console.log("[Webhook MP] Body vazio — provavelmente teste do painel");
+        return;
+      }
+      body = JSON.parse(raw);
+    } else if (req.body && typeof req.body === "object") {
+      body = req.body;
+    } else {
+      console.log("[Webhook MP] Body inválido:", req.body);
+      return;
+    }
 
-  console.log(`[Webhook MP] type=${event.type} action=${event.action} id=${event.id}`);
+    console.log("[Webhook MP] Recebido:", JSON.stringify(body));
 
-  try {
+    const event = await processMPWebhook(body, signature);
+    console.log(`[Webhook MP] type=${event.type} action=${event.action} id=${event.id}`);
+
     if (event.type === "payment" || event.action === "payment.updated") {
       const { getMPStatus } = await import("../services/mercadopago.js");
       const statusResult = await getMPStatus(event.id);
       await updateTransactionStatus(String(event.id), statusResult.status, statusResult.detail);
+      console.log(`[Webhook MP] Transação ${event.id} → ${statusResult.status}`);
     }
 
     if (event.type === "subscription_authorized_payment") {
@@ -111,11 +107,9 @@ router.post("/mercadopago", async (req, res) => {
     }
 
   } catch (err) {
-    console.error("[Webhook MP] Handler error:", err.message);
-    // Retorna 200 mesmo assim — evita que o MP fique reenviando
+    console.error("[Webhook MP] Erro interno:", err.message);
+    // Não afeta o 200 já enviado
   }
-
-  res.json({ received: true });
 });
 
 export default router;
