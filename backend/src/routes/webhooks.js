@@ -2,13 +2,12 @@
  * routes/webhooks.js
  * POST /api/webhooks/stripe
  * POST /api/webhooks/mercadopago
- *
- * IMPORTANTE: o body chega como Buffer (raw) — ver server.js
+ * GET  /api/webhooks/mercadopago  ← validação do painel MP
  */
 
 import { Router } from "express";
-import { processStripeWebhook }  from "../services/stripe.js";
-import { processMPWebhook }      from "../services/mercadopago.js";
+import { processStripeWebhook }    from "../services/stripe.js";
+import { processMPWebhook }        from "../services/mercadopago.js";
 import { updateTransactionStatus } from "../services/transactionLog.js";
 
 const router = Router();
@@ -33,7 +32,6 @@ router.post("/stripe", async (req, res) => {
 
   try {
     switch (event.type) {
-
       case "checkout.session.completed": {
         const session = event.data.object;
         await updateTransactionStatus(session.id, "approved", {
@@ -43,13 +41,11 @@ router.post("/stripe", async (req, res) => {
         });
         break;
       }
-
       case "checkout.session.expired": {
         const session = event.data.object;
         await updateTransactionStatus(session.id, "cancelled");
         break;
       }
-
       case "payment_intent.payment_failed": {
         const pi = event.data.object;
         await updateTransactionStatus(pi.id, "rejected", {
@@ -57,38 +53,32 @@ router.post("/stripe", async (req, res) => {
         });
         break;
       }
-
       case "customer.subscription.deleted": {
         const sub = event.data.object;
-        await updateTransactionStatus(sub.id, "cancelled", { reason: sub.cancellation_details?.reason });
+        await updateTransactionStatus(sub.id, "cancelled", {
+          reason: sub.cancellation_details?.reason,
+        });
         break;
       }
-
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object;
-        console.log(`[Stripe] Invoice pago: ${invoice.id} — R$${(invoice.amount_paid / 100).toFixed(2)}`);
-        break;
-      }
-
-      case "invoice.payment_failed": {
-        const invoice = event.data.object;
-        console.warn(`[Stripe] Invoice falhou: ${invoice.id}`);
-        break;
-      }
-
       default:
-        // Evento não tratado — ignora silenciosamente
         break;
     }
   } catch (err) {
     console.error("[Webhook Stripe] Handler error:", err.message);
-    // Retorna 200 mesmo assim para o Stripe não retentar
   }
 
   res.json({ received: true });
 });
 
-/* ─── Mercado Pago Webhook ───────────────────────────────── */
+/* ─── Mercado Pago — GET (validação do painel MP) ────────── */
+// O painel do MP faz um GET com ?topic=payment&id=123456 para testar
+// Se não responder 200, o painel marca como falha — mas NÃO afeta pagamentos reais
+router.get("/mercadopago", (req, res) => {
+  console.log("[Webhook MP] Validação GET recebida:", req.query);
+  res.status(200).json({ received: true });
+});
+
+/* ─── Mercado Pago — POST (notificações reais) ───────────── */
 router.post("/mercadopago", async (req, res) => {
   const signature = req.headers["x-signature"];
   let body;
@@ -110,11 +100,9 @@ router.post("/mercadopago", async (req, res) => {
   console.log(`[Webhook MP] type=${event.type} action=${event.action} id=${event.id}`);
 
   try {
-    if (event.type === "payment") {
-      // Busca status real do pagamento
+    if (event.type === "payment" || event.action === "payment.updated") {
       const { getMPStatus } = await import("../services/mercadopago.js");
       const statusResult = await getMPStatus(event.id);
-
       await updateTransactionStatus(String(event.id), statusResult.status, statusResult.detail);
     }
 
@@ -122,15 +110,9 @@ router.post("/mercadopago", async (req, res) => {
       console.log(`[MP] Cobrança de assinatura: ${event.id}`);
     }
 
-    if (event.action === "payment.updated") {
-      const { getMPStatus } = await import("../services/mercadopago.js");
-      const statusResult = await getMPStatus(event.id);
-      await updateTransactionStatus(String(event.id), statusResult.status, statusResult.detail);
-    }
-
   } catch (err) {
     console.error("[Webhook MP] Handler error:", err.message);
-    // Retorna 200 para o MP não retentar
+    // Retorna 200 mesmo assim — evita que o MP fique reenviando
   }
 
   res.json({ received: true });
