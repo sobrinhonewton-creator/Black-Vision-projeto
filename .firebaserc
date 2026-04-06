@@ -1,0 +1,10 @@
+{
+  "projects": {
+    "BLACKVISION V2": "blackvision-27f1c",
+    "Blackvision v2.1": "blackvision-27f1c",
+    "default": "blackvision-27f1c",
+    "Blackvision v2.2": "blackvision-27f1c"
+  },
+  "targets": {},
+  "etags": {}
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Black Vision",
+  "short_name": "Black Vision",
+  "description": "Sistemas Web, Automação e IA para empresas que querem crescer.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

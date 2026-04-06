@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Black Vision — Sistemas Web, Automação de Processos e IA para empresas que querem crescer."
+    />
+    <meta name="theme-color" content="#080808" />
+    <meta property="og:title"       content="Black Vision — Sistemas, Automação & IA" />
+    <meta property="og:description" content="Transforme seu negócio com tecnologia que gera resultado." />
+    <meta property="og:type"        content="website" />
+
+    <!-- Preconnect para fontes (elimina latência de DNS) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!--
+      NOTA: O preload de hero-bg.jpg foi REMOVIDO intencionalmente.
+      A imagem é carregada via CSS (background-image no .hero-bg),
+      não via <img>, então o browser não consegue associar o preload
+      e gera o aviso "preloaded but not used". Sem o preload, o CSS
+      carrega a imagem normalmente sem nenhum erro ou aviso.
+    -->
+
+    <!-- Fontes com display=swap (sem FOIT) -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Poppins:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>Black Vision — Sistemas, Automação & IA</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
