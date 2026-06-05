@@ -53,11 +53,14 @@ export async function createMPCheckout({ plan, tier, customer, successUrl, failu
 
   const result = await preference.create({ body });
 
+  const isTestToken = process.env.MP_ACCESS_TOKEN?.startsWith("TEST-");
+  const urlToUse = isTestToken ? result.sandbox_init_point : result.init_point;
+
   return {
     preferenceId: result.id,
-    initPoint:    result.init_point,           // URL de produção — sempre usar essa
+    initPoint:    result.init_point,
     sandboxUrl:   result.sandbox_init_point,
-    checkoutUrl:  result.init_point,           // ← sempre init_point (conta de produção)
+    checkoutUrl:  urlToUse,
   };
 }
 
