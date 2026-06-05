@@ -1,29 +1,27 @@
+/**
+ * Login.jsx — Painel Admin Login com autenticação real via backend
+ */
+
 import { useState } from "react";
-import { login } from "../services/auth";
 import { useNavigate } from "react-router-dom";
+import useAuthStore from "../store/authStore.js";
 
 export default function Login() {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
   const navigate = useNavigate();
+
+  const { login, loading, error, clearError } = useAuthStore();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError("");
-    if (!email)    { setError("Por favor, insira seu e-mail."); return; }
-    if (!password) { setError("Por favor, insira sua senha.");  return; }
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const success = await login(email, password);
-    setLoading(false);
-    if (success) {
+    clearError();
+    if (!email || !password) return;
+
+    const result = await login(email, password);
+    if (result.success) {
       navigate("/admin/dashboard");
-    } else {
-      setError("E-mail ou senha inválidos. Tente novamente.");
-      setPassword("");
     }
   };
 
@@ -59,7 +57,8 @@ export default function Login() {
                 <input
                   id="al-email" type="email" placeholder="admin@blackvision.com"
                   autoComplete="email" value={email}
-                  onChange={e => { setEmail(e.target.value); setError(""); }}
+                  onChange={e => { setEmail(e.target.value); clearError(); }}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -76,7 +75,8 @@ export default function Login() {
                 <input
                   id="al-password" type={showPass ? "text" : "password"}
                   placeholder="••••••••" autoComplete="current-password" value={password}
-                  onChange={e => { setPassword(e.target.value); setError(""); }}
+                  onChange={e => { setPassword(e.target.value); clearError(); }}
+                  disabled={loading}
                 />
                 <button type="button" className="al-pass-btn"
                   onClick={() => setShowPass(v => !v)}
@@ -106,36 +106,20 @@ export default function Login() {
               </div>
             )}
 
-            <button type="submit" className="al-btn" disabled={loading}>
+            <button type="submit" className="al-btn" disabled={loading || !email || !password}>
               {loading ? (
                 <span className="al-spinner" />
               ) : (
                 <>
                   <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-                    <polyline points="10 17 15 12 10 7"/>
-                    <line x1="15" y1="12" x2="3" y2="12"/>
+                    <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
                   </svg>
                   Entrar no Painel
                 </>
               )}
             </button>
           </form>
-
-          <div className="al-divider">
-            <div className="al-divider-line" />
-            <span className="al-divider-text">Bem Vindo</span>
-            <div className="al-divider-line" />
-          </div>
-
-          <div className="al-hint">
-            <span className="al-hint-icon">
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-              </svg>
-            </span>
-            <span><strong>Por Favor Digite:</strong> <strong> </strong> Email e senha<strong></strong></span>
-          </div>
 
           <div className="al-footer">
             <a href="/">← Voltar ao site</a>
@@ -256,6 +240,7 @@ const adminLoginCSS = `
     border-color:rgba(201,168,76,.5); background:rgba(201,168,76,.04);
     box-shadow:0 0 0 3px rgba(201,168,76,.08),0 0 20px rgba(201,168,76,.06);
   }
+  .al-field input:disabled { opacity:.6; cursor:not-allowed; }
   .al-field input:-webkit-autofill,
   .al-field input:-webkit-autofill:focus {
     -webkit-box-shadow:0 0 0 30px #0e0e0e inset !important;
@@ -297,17 +282,6 @@ const adminLoginCSS = `
     border-radius:50%; animation: al-spin .7s linear infinite;
   }
   @keyframes al-spin { to{transform:rotate(360deg)} }
-  .al-divider { display:flex; align-items:center; gap:.75rem; margin:1.25rem 0; }
-  .al-divider-line { flex:1; height:1px; background:linear-gradient(90deg,transparent,var(--border),transparent); }
-  .al-divider-text { font-size:.72rem; color:var(--text-muted); white-space:nowrap; font-family:var(--font-body); }
-  .al-hint {
-    background:rgba(201,168,76,.05); border:1px solid var(--border);
-    border-radius:var(--radius); padding:.875rem 1.25rem;
-    font-size:.78rem; color:var(--text-muted); font-family:var(--font-body);
-    display:flex; align-items:flex-start; gap:.625rem;
-  }
-  .al-hint-icon { color:var(--gold-2); flex-shrink:0; margin-top:.05rem; }
-  .al-hint strong { color:var(--gold-3); }
   .al-footer { text-align:center; margin-top:1.75rem; font-size:.75rem; color:var(--text-muted); }
   .al-footer a { color:var(--gold-2); text-decoration:none; transition:color var(--transition); }
   .al-footer a:hover { color:var(--gold-3); }

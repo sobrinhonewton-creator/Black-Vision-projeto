@@ -1,6 +1,10 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import ProtectedRoute from "./admin/ProtectedRoute";
+import { ToastProvider } from "./components/ui/Toast";
+import useAuthStore from "./store/authStore";
+import useContentStore from "./store/contentStore";
+import { trackPageView } from "./services/tracking";
 
 import './styles/blackvision.css'
 import './styles/pricing.css'
@@ -19,6 +23,10 @@ import Contact       from './sections/Contact.jsx'
 
 import Login     from "./admin/Login";
 import Dashboard from "./admin/Dashboard";
+
+import Terms from "./pages/Terms.jsx";
+import Privacy from "./pages/Privacy.jsx";
+import NotFound from "./pages/NotFound.jsx";
 
 // Checkout lazy-loaded — não impacta bundle do site
 const CheckoutPage    = lazy(() => import("./pages/checkout/CheckoutPage.jsx"));
@@ -39,8 +47,18 @@ function LoadingSpinner() {
 }
 
 export default function App() {
+  const { restoreSession } = useAuthStore();
+  const { fetchContent } = useContentStore();
+
+  useEffect(() => {
+    restoreSession();
+    fetchContent();
+    trackPageView();
+  }, []);
+
   return (
-    <Router>
+    <ToastProvider>
+      <Router>
       <Routes>
 
         {/* ── SITE NORMAL ── */}
@@ -88,7 +106,13 @@ export default function App() {
           }
         />
 
+        {/* ── EXTRAS ── */}
+        <Route path="/termos" element={<Terms />} />
+        <Route path="/privacidade" element={<Privacy />} />
+        <Route path="*" element={<NotFound />} />
+
       </Routes>
     </Router>
+    </ToastProvider>
   );
 }

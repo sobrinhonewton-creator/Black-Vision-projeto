@@ -1,39 +1,17 @@
-import { trackCardClick } from "../services/tracking";
+import { trackCardClick } from "../services/tracking.js";
 import { useInView } from '../hooks/useInView.js'
+import useContentStore from '../store/contentStore.js'
 
-const solutions = [
-  {
-    icon: '🌐',
-    tag: 'Sistemas Web',
-    title: 'Sites & Plataformas de Alta Performance',
-    description:
-      'Landing pages, e-commerces e sistemas web construídos para converter. Lighthouse 95+, SEO técnico e UX que gera vendas.',
-    features: ['Carregamento < 2s', 'SEO Técnico Avançado', 'Conversão Otimizada', 'Dashboard Admin'],
-    /* Nome da imagem em public/images/ */
-    image: '/images/img-web.webp',
-  },
-  {
-    icon: '⚙️',
-    tag: 'Automação',
-    title: 'Automação de Processos Operacionais',
-    description:
-      'Elimine tarefas repetitivas, integre sistemas e crie fluxos automáticos que economizam tempo e reduzem erros.',
-    features: ['Make / n8n / Zapier', 'Integração de ERPs', 'WhatsApp Automático', 'Relatórios em Tempo Real'],
-    image: '/images/img-automacao.webp',
-  },
-  {
-    icon: '🤖',
-    tag: 'IA Aplicada',
-    title: 'Soluções com Inteligência Artificial',
-    description:
-      'Chatbots inteligentes, análise preditiva e automação cognitiva. IA que realmente trabalha pelo seu negócio.',
-    features: ['Chatbot com IA', 'Análise de Dados', 'Geração de Conteúdo', 'Personalização em Escala'],
-    image: '/images/img-sistemas.webp',
-  },
+const FALLBACK_IMAGES = [
+  '/images/img-web.webp',
+  '/images/img-automacao.webp',
+  '/images/img-sistemas.webp'
 ]
 
 export default function Solutions() {
   const [ref, inView] = useInView()
+  const { content } = useContentStore()
+  const cards = content?.cards?.filter(c => c.active) || []
 
   return (
     <section id="solutions">
@@ -55,16 +33,16 @@ export default function Solutions() {
 
         {/* Grid de cards com imagem */}
         <div className="solutions-grid">
-          {solutions.map((s, i) => (
+          {cards.map((s, i) => (
             <div
-  key={s.tag}
+  key={s.tag || i}
   className={`solution-card fade-up delay-${i + 1} ${inView ? 'visible' : ''}`}
   onClick={() => trackCardClick()}
             >
               {/* Imagem de fundo */}
               <div
                 className="solution-card-bg"
-                style={{ backgroundImage: `url('${s.image}')` }}
+                style={{ backgroundImage: `url('${FALLBACK_IMAGES[i % FALLBACK_IMAGES.length]}')` }}
                 role="presentation"
                 aria-hidden="true"
               />
@@ -77,9 +55,9 @@ export default function Solutions() {
                 <div className="solution-icon">{s.icon}</div>
                 <div className="solution-tag">{s.tag}</div>
                 <div className="solution-title">{s.title}</div>
-                <p className="solution-desc">{s.description}</p>
+                <p className="solution-desc">{s.desc}</p>
                 <ul className="solution-features">
-                  {s.features.map((f) => (
+                  {(s.features || []).map((f) => (
                     <li key={f}>
                       <span className="check">✓</span>
                       {f}

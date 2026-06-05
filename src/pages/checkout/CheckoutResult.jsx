@@ -6,7 +6,8 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { getPaymentStatus, logTransaction } from "../../services/payment.js";
+import { getPaymentStatus } from "../../services/payment.js";
+import { trackCheckoutSuccess } from "../../services/tracking.js";
 
 /* ── Shared shell ── */
 function ResultShell({ children }) {
@@ -35,7 +36,9 @@ export function CheckoutSuccess() {
     getPaymentStatus(paymentId).then(res => {
       const s = res.status === "approved" ? "approved" : res.status || "approved";
       setStatus(s);
-      logTransaction({ id: paymentId, status: s, tier: params.get("plan") || "unknown" });
+      if (s === "approved") {
+        trackCheckoutSuccess(params.get("plan") || "unknown");
+      }
     }).catch(() => setStatus("approved")); // optimistic on error
   }, [paymentId, params]);
 
@@ -83,7 +86,7 @@ export function CheckoutFailure() {
   const planId    = params.get("plan") || "advanced";
 
   useEffect(() => {
-    logTransaction({ tier: planId, status: "rejected", meta: { reason: params.get("reason") } });
+    // No action needed for rejected in tracking API
   }, [planId, params]);
 
   return (

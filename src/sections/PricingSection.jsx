@@ -7,79 +7,7 @@
 import { useState } from 'react'
 import { useInView } from '../hooks/useInView.js'
 import PricingCard from '../components/PricingCard.jsx'
-
-/* ── Dados dos planos ────────────────────────────── */
-const WA_BASE =
-  'https://wa.me/557381068594?text=Ol%C3%A1!%20Tenho%20interesse%20no%20plano%20'
-
-const PLANS = [
-  {
-    tier: 'basic',
-    name: 'Basic',
-    price: 'R$ 497 – R$ 997',
-    priceSub: 'por projeto',
-    tagline: 'Ideal para começar rápido e profissional',
-    features: [
-      'Landing page profissional',
-      'Botão WhatsApp integrado',
-      'Copy otimizada para conversão',
-      'Integração básica de formulário',
-      'Mobile-first & responsivo',
-      'Entrega em até 7 dias',
-    ],
-    audience: 'Autônomos e pequenos negócios',
-    ctaLabel: 'Quero começar',
-    ctaLink: WA_BASE + 'Basic',
-    highlighted: false,
-    badge: null,
-    delay: 0,
-  },
-  {
-    tier: 'advanced',
-    name: 'Advanced',
-    price: 'R$ 1.500 – R$ 3.000',
-    priceSub: 'por projeto',
-    tagline: 'Plano mais escolhido — solução completa',
-    features: [
-      'Site completo multi-página',
-      'Automação de WhatsApp',
-      'Funil de vendas básico',
-      'SEO técnico inicial',
-      'Painel administrativo',
-      'Relatórios mensais',
-      'Suporte prioritário 30 dias',
-    ],
-    audience: 'Empresas locais, lojas e prestadores',
-    ctaLabel: 'Quero crescer',
-    ctaLink: WA_BASE + 'Advanced',
-    highlighted: true,
-    badge: 'MAIS ESCOLHIDO',
-    delay: 120,
-  },
-  {
-    tier: 'pro',
-    name: 'Pro',
-    price: 'Sob consulta',
-    priceSub: 'solução personalizada',
-    tagline: 'Solução completa para escalar de verdade',
-    features: [
-      'Sistema web personalizado',
-      'Automação de processos completa',
-      'Chatbot com Inteligência Artificial',
-      'Dashboard analytics em tempo real',
-      'Integrações de ERP e CRM',
-      'Equipe dedicada ao projeto',
-      'SLA e suporte contínuo',
-    ],
-    audience: 'Empresas estruturadas e em escala',
-    ctaLabel: 'Falar com especialista',
-    ctaLink: WA_BASE + 'Pro',
-    highlighted: false,
-    badge: null,
-    delay: 240,
-  },
-]
-
+import useContentStore from '../store/contentStore.js'
 /* ── Partículas CSS estáticas (sem JS pesado) ────── */
 const PARTICLES = [
   { size: 3, top: '12%', left: '8%',  delay: '0s',   dur: '6s'  },
@@ -96,6 +24,13 @@ const PARTICLES = [
 export default function PricingSection() {
   const [ref, inView] = useInView({ threshold: 0.08 })
   const [hoveredTier, setHoveredTier] = useState(null)
+  
+  const { content } = useContentStore()
+  const plans = content?.plans || []
+  const waNumber = content?.waNumber || ""
+  
+  const dynamicWaLinkBase = `https://wa.me/${waNumber.replace(/\D/g, "")}?text=Olá! Tenho interesse no plano `
+  const dynamicWaLinkGeneral = `https://wa.me/${waNumber.replace(/\D/g, "")}?text=Tenho dúvidas sobre os planos`
 
   /* Blur nos cards vizinhos quando um é hovered */
   const getCardMod = (tier) => {
@@ -161,9 +96,9 @@ export default function PricingSection() {
 
         {/* ── Grid de cards ── */}
         <div className="pricing-grid" role="list">
-          {PLANS.map((plan) => (
+          {plans.map((plan, index) => (
             <div
-              key={plan.tier}
+              key={plan.tier || index}
               className={getCardMod(plan.tier)}
               role="listitem"
               onMouseEnter={() => setHoveredTier(plan.tier)}
@@ -171,6 +106,8 @@ export default function PricingSection() {
             >
               <PricingCard
                 {...plan}
+                ctaLink={dynamicWaLinkBase + plan.name}
+                delay={index * 120}
                 visible={inView}
               />
             </div>
@@ -183,7 +120,7 @@ export default function PricingSection() {
         >
           Todos os planos incluem reunião de briefing gratuita.{' '}
           <a
-            href="https://wa.me/557381068594?text=Tenho%20d%C3%BAvidas%20sobre%20os%20planos"
+            href={dynamicWaLinkGeneral}
             target="_blank"
             rel="noopener noreferrer"
             className="pricing-footnote__link"

@@ -1,38 +1,45 @@
 import { useInView } from '../hooks/useInView.js'
-
-const WA_LINK =
-  'https://wa.me/557381068594?text=Ol%C3%A1!%20Quero%20agendar%20uma%20reuni%C3%A3o%20estrat%C3%A9gica%20gratuita%20com%20a%20Black%20Vision.'
-
-const SOCIAL = [
-  {
-    icon: '💬',
-    className: 'wa',
-    label: 'WhatsApp',
-    value: '+55 73 8106-8594',
-    href: WA_LINK,
-    external: true,
-  },
-  {
-    icon: '📸',
-    className: 'ig',
-    label: 'Instagram',
-    value: '@blackvision.br',
-    href: 'https://www.instagram.com/blackvision.br/',
-    external: true,
-  },
-  {
-    icon: '✉️',
-    className: 'email',
-    label: 'E-mail',
-    /* Protegido de bots: montado só no cliente */
-    value: 'getblackvision.br\u0040gmail.com',
-    href: 'mailto:getblackvision.br\u0040gmail.com',
-    external: false,
-  },
-]
+import useContentStore from '../store/contentStore.js'
+import { trackWhatsAppClick } from '../services/tracking.js'
 
 export default function Contact() {
   const [ref, inView] = useInView()
+  
+  const { content } = useContentStore()
+  const { waNumber, instagram } = content || {}
+  
+  const dynamicWaLink = `https://wa.me/${(waNumber || "").replace(/\D/g, "")}?text=Olá! Quero agendar uma reunião estratégica gratuita com a Black Vision.`
+  
+  const formattedWa = waNumber ? `+${waNumber.slice(0,2)} ${waNumber.slice(2,4)} ${waNumber.slice(4,8)}-${waNumber.slice(8)}` : '+55 73 8106-8594'
+
+  const SOCIAL = [
+    {
+      icon: '💬',
+      className: 'wa',
+      label: 'WhatsApp',
+      value: formattedWa,
+      href: dynamicWaLink,
+      external: true,
+      onClick: trackWhatsAppClick
+    },
+    {
+      icon: '📸',
+      className: 'ig',
+      label: 'Instagram',
+      value: '@blackvision.br',
+      href: instagram || 'https://www.instagram.com/blackvision.br/',
+      external: true,
+    },
+    {
+      icon: '✉️',
+      className: 'email',
+      label: 'E-mail',
+      /* Protegido de bots: montado só no cliente */
+      value: 'getblackvision.br\u0040gmail.com',
+      href: 'mailto:getblackvision.br\u0040gmail.com',
+      external: false,
+    },
+  ]
 
   return (
     <section id="contact">
@@ -69,6 +76,7 @@ export default function Contact() {
               rel={s.external ? 'noopener noreferrer' : undefined}
               className={`social-link fade-up delay-${i + 1} ${inView ? 'visible' : ''}`}
               aria-label={`${s.label}: ${s.value}`}
+              onClick={s.onClick ? () => s.onClick() : undefined}
             >
               <div className={`social-link-icon ${s.className}`}>{s.icon}</div>
               <div>
@@ -85,10 +93,11 @@ export default function Contact() {
           style={{ marginTop: '2.5rem' }}
         >
           <a
-            href={WA_LINK}
+            href={dynamicWaLink}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary pulse"
+            onClick={() => trackWhatsAppClick()}
             style={{ fontSize: '1rem', padding: '1rem 2.5rem' }}
           >
             <svg width="19" height="19" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">

@@ -1,12 +1,16 @@
 import { useEffect, useRef } from 'react'
 import { useInView } from '../hooks/useInView.js'
-
-const WA_LINK =
-  'https://wa.me/557381068594?text=Ol%C3%A1!%20Quero%20aumentar%20meu%20faturamento%20com%20automa%C3%A7%C3%A3o%20e%20IA.'
+import useContentStore from '../store/contentStore.js'
+import { trackWhatsAppClick, trackPlanView } from '../services/tracking.js'
 
 export default function Hero() {
   const [ref, inView] = useInView({ threshold: 0.05 })
   const bgRef = useRef(null)
+  
+  const { content } = useContentStore()
+  const { heroTitle, heroSubtitle, heroBadge, waNumber, waMsg } = content || {}
+
+  const dynamicWaLink = `https://wa.me/${(waNumber || "").replace(/\D/g, "")}?text=${encodeURIComponent(waMsg || "")}`
 
   /* Parallax leve — desativado em mobile via CSS (media query) */
   useEffect(() => {
@@ -57,15 +61,12 @@ export default function Hero() {
             <div className={`fade-up ${inView ? 'visible' : ''}`}>
               <div className="badge" style={{ marginBottom: '1.75rem' }}>
                 <span>⚡</span>
-                <span>Sistemas · Automação · Inteligência Artificial</span>
+                <span>{heroBadge || 'Sistemas · Automação · Inteligência Artificial'}</span>
               </div>
             </div>
 
             <h1 className={`fade-up delay-1 ${inView ? 'visible' : ''}`}>
-              Transforme seu negócio{' '}
-              com{' '}
-              <span className="shimmer">tecnologia que</span>
-              {' '}gera resultado.
+              {heroTitle || 'Transforme seu negócio com tecnologia que gera resultado.'}
             </h1>
 
             <p
@@ -76,17 +77,16 @@ export default function Hero() {
                 marginTop: '1.25rem',
               }}
             >
-              Construímos sistemas web de alta performance, automatizamos
-              processos operacionais e implementamos IA para empresas que
-              querem crescer de forma consistente e mensurável.
+              {heroSubtitle || 'Construímos sistemas web de alta performance, automatizamos processos operacionais e implementamos IA para empresas que querem crescer de forma consistente e mensurável.'}
             </p>
 
             <div className={`hero-actions fade-up delay-3 ${inView ? 'visible' : ''}`}>
               <a
-                href={WA_LINK}
+                href={dynamicWaLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-primary pulse"
+                onClick={() => trackWhatsAppClick()}
               >
                 <WaIcon />
                 Quero Crescer com IA
