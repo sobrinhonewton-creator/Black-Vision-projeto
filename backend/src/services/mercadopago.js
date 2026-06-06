@@ -111,12 +111,12 @@ function buildPayer(customer, cpf) {
   const address = customer.address || {};
 
   const normalizedAddress = {
-    zip_code: String(address.zip_code || address.zip || "").replace(/\D/g, "").trim(),
-    street_name: String(address.street_name || address.street || "").trim(),
-    street_number: String(address.street_number || address.number || "").trim(),
-    neighborhood: String(address.neighborhood || address.district || "").trim(),
-    city: String(address.city || "").trim(),
-    federal_unit: String(address.federal_unit || address.state || "").trim().toUpperCase(),
+    zip_code: String(address.zip_code || address.zip || address.cep || "").replace(/\D/g, "").trim(),
+    street_name: String(address.street_name || address.street || address.logradouro || "").trim(),
+    street_number: String(address.street_number || address.number || address.numero || "").trim(),
+    neighborhood: String(address.neighborhood || address.district || address.bairro || "").trim(),
+    city: String(address.city || address.locality || address.cidade || "").trim(),
+    federal_unit: String(address.federal_unit || address.state || address.uf || "").trim().toUpperCase(),
   };
 
   const hasAddress = Object.values(normalizedAddress).every((value) => value);
