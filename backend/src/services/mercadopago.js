@@ -121,7 +121,7 @@ function buildPayer(customer, cpf) {
 
   const hasAddress = Object.values(normalizedAddress).every((value) => value);
 
-  return {
+  const payer = {
     email:      customer.email,
     first_name: parts[0] || "Cliente",
     last_name:  parts.slice(1).join(" ") || parts[0] || "Black Vision",
@@ -129,6 +129,12 @@ function buildPayer(customer, cpf) {
     ...(doc.length === 11 ? { identification: { type: "CPF", number: doc } } : {}),
     ...(hasAddress ? { address: normalizedAddress } : {}),
   };
+
+  if (Object.keys(normalizedAddress).some(k => normalizedAddress[k])) {
+    console.log("[MP/BuildPayer] Address info:", { hasAddress, normalizedAddress, payerHasAddr: !!payer.address });
+  }
+
+  return payer;
 }
 
 /**
@@ -154,6 +160,7 @@ export async function createMPDirectPayment({ plan, tier, customer, method, cpf 
     const required = ['zip_code','street_name','street_number','neighborhood','city','federal_unit'];
     const missing = required.filter(k => !addr[k]);
     if (missing.length) {
+      console.error("[MP/Boleto] Missing address fields in payer:", { payer, missing });
       throw new Error("Para gerar um boleto registrado, os seguintes parâmetros são obrigatórios: " + missing.join(', '));
     }
   }

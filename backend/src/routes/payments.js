@@ -83,7 +83,11 @@ function normalizeAddress(address) {
 
 function getMissingAddressFields(address) {
   const required = ["zip_code", "street_name", "street_number", "neighborhood", "city", "federal_unit"];
-  return required.filter((key) => !String(address[key] || "").trim());
+  const missing = required.filter((key) => !String(address[key] || "").trim());
+  // Also validate CEP has exactly 8 digits
+  const cepValid = /^\d{8}$/.test(String(address.zip_code || "").replace(/\D/g, ""));
+  if (!cepValid) missing.push("zip_code (inválido)");
+  return missing;
 }
 
 /* POST /api/payments/create — PIX / Boleto nativo (sem redirect MP) */
@@ -112,6 +116,7 @@ router.post("/create", async (req, res) => {
   if (method === "boleto") {
     const missing = getMissingAddressFields(normalizedAddress);
     if (missing.length) {
+      console.warn("[Payment/Boleto] Address validation failed:", { customerAddress, address, customer_address, normalizedAddress, missing });
       return res.status(400).json({
         message: `Boleto registrado exige endereço completo: ${missing.join(", ")}`,
         missing,
@@ -127,6 +132,7 @@ router.post("/create", async (req, res) => {
   };
 
   try {
+    console.log("[Payment/Create] Processing:", { method, customerEmail, addressNorm: normalizedAddress });
     const result = await createMPDirectPayment({ plan, tier, customer, method, cpf: customerCpf });
 
     await logTransaction({
@@ -138,7 +144,11 @@ router.post("/create", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error("[Payment create]", err.message);
+    console.error("[Payment create] Error:", {
+      method,
+      error: err.message,
+      customer,
+    });
 
     await logTransaction({
       tier, gateway: "mercadopago", status: "error",
