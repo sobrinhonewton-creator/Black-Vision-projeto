@@ -9,6 +9,7 @@
  *  4. notification_url usa BACKEND_URL do .env
  */
 
+import { randomUUID } from "crypto";
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
 function getClient() {
@@ -17,9 +18,25 @@ function getClient() {
   return new MercadoPagoConfig({ accessToken: token, options: { timeout: 10000 } });
 }
 
-export async function createMPCheckout({ plan, tier, customer, successUrl, failureUrl }) {
+function parseBRPhone(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  const local = digits.length === 13 && digits.startsWith("55")
+    ? digits.slice(2)
+    : digits.length === 12 && digits.startsWith("55")
+      ? digits.slice(2)
+      : digits;
+  if (local.length < 10) return null;
+  return {
+    area_code: local.slice(0, 2),
+    number:    local.slice(2),
+  };
+}
+
+export async function createMPCheckout({ plan, tier, customer, successUrl, failureUrl, pendingUrl }) {
   const client     = getClient();
   const preference = new Preference(client);
+  const phone      = parseBRPhone(customer.phone);
 
   // O MP injeta automaticamente no redirect:
   // ?collection_id=X&payment_id=X&status=approved&external_reference=X
@@ -28,27 +45,32 @@ export async function createMPCheckout({ plan, tier, customer, successUrl, failu
     items: [{
       id:          tier,
       title:       plan.label,
+      description: plan.label,
+      category_id: "services",
       quantity:    1,
       unit_price:  plan.amount ? plan.amount / 100 : 1,
       currency_id: "BRL",
     }],
     payer: {
       email: customer.email,
-      ...(customer.name  ? { name: customer.name }  : {}),
-      ...(customer.phone ? { phone: { number: customer.phone.replace(/\D/g, "") } } : {}),
+      ...(customer.name ? { name: customer.name.split(" ")[0], surname: customer.name.split(" ").slice(1).join(" ") || customer.name } : {}),
+      ...(phone ? { phone } : {}),
+    },
+    payment_methods: {
+      excluded_payment_methods: [],
+      excluded_payment_types:     [],
+      installments:               12,
     },
     back_urls: {
-      success: successUrl,                     // ← URL limpa, sem template
+      success: successUrl,
       failure: failureUrl,
-      pending: successUrl + "&status=pending",
+      pending: pendingUrl || successUrl,
     },
     auto_return:          "approved",
     statement_descriptor: "BLACK VISION",
     external_reference:   `bv_${tier}_${Date.now()}`,
     notification_url:     `${process.env.BACKEND_URL}/api/webhooks/mercadopago`,
-    expires:              true,
-    expiration_date_from: new Date().toISOString(),
-    expiration_date_to:   new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    expires:              false,
   };
 
   const result = await preference.create({ body });
@@ -62,6 +84,79 @@ export async function createMPCheckout({ plan, tier, customer, successUrl, failu
     sandboxUrl:   result.sandbox_init_point,
     checkoutUrl:  urlToUse,
   };
+}
+
+const MP_METHODS = {
+  pix:    "pix",
+  boleto: "bolbradesco",
+};
+
+function mpErrorMessage(err) {
+  const cause = err?.cause?.[0];
+  return cause?.description || cause?.message || err?.message || "Erro no Mercado Pago";
+}
+
+function buildPayer(customer, cpf) {
+  const phone = parseBRPhone(customer.phone);
+  const parts = String(customer.name || "").trim().split(/\s+/);
+  const doc   = String(cpf || "").replace(/\D/g, "");
+
+  return {
+    email:      customer.email,
+    first_name: parts[0] || "Cliente",
+    last_name:  parts.slice(1).join(" ") || parts[0] || "Black Vision",
+    ...(phone ? { phone } : {}),
+    ...(doc.length === 11 ? { identification: { type: "CPF", number: doc } } : {}),
+  };
+}
+
+/**
+ * PIX ou Boleto via Payments API — QR/código gerado no nosso site (sem redirect MP).
+ * @param {'pix'|'boleto'} method
+ */
+export async function createMPDirectPayment({ plan, tier, customer, method, cpf }) {
+  const paymentMethodId = MP_METHODS[method];
+  if (!paymentMethodId) throw new Error(`Método inválido: ${method}`);
+  if (!plan?.amount) throw new Error("Plano sem valor definido");
+
+  const client  = getClient();
+  const payment = new Payment(client);
+  const payer   = buildPayer(customer, cpf);
+
+  if (!payer.identification) {
+    throw new Error("CPF é obrigatório para PIX e Boleto");
+  }
+
+  const body = {
+    transaction_amount: plan.amount / 100,
+    description:        plan.label,
+    payment_method_id:  paymentMethodId,
+    payer,
+    external_reference: `bv_${tier}_${Date.now()}`,
+    notification_url:   `${process.env.BACKEND_URL}/api/webhooks/mercadopago`,
+  };
+
+  try {
+    const result = await payment.create({
+      body,
+      requestOptions: { idempotencyKey: randomUUID() },
+    });
+
+    const tx = result.point_of_interaction?.transaction_data || {};
+
+    return {
+      paymentId:    result.id,
+      status:       result.status,
+      method,
+      amount:       result.transaction_amount,
+      qrCode:       tx.qr_code || null,
+      qrCodeBase64: tx.qr_code_base64 || null,
+      ticketUrl:    tx.ticket_url || result.transaction_details?.external_resource_url || null,
+      expiresAt:    result.date_of_expiration || null,
+    };
+  } catch (err) {
+    throw new Error(mpErrorMessage(err));
+  }
 }
 
 export async function getMPStatus(paymentId) {

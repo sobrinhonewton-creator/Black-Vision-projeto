@@ -22,6 +22,7 @@ const allowed = new Set([
   "http://localhost:4173",
   "https://blackvision-27f1c.web.app",
   "https://blackvision.com.br",
+  "https://www.blackvision.com.br",
 ].filter(Boolean));
 
 app.use(cors({
@@ -36,6 +37,7 @@ app.use(cors({
 
 app.use("/api/webhooks", express.raw({ type: "application/json" }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.get("/health", (_, res) => res.json({
   ok: true, ts: Date.now(),

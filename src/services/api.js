@@ -5,7 +5,11 @@
 
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3333";
+export const PRODUCTION_API = "https://black-vision-backend-production.up.railway.app";
+
+export const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? PRODUCTION_API : "http://localhost:3333");
 
 const api = axios.create({
   baseURL: API_BASE,

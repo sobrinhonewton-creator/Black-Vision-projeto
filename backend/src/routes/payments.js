@@ -7,7 +7,7 @@
 
 import { Router } from "express";
 import { requireAdmin } from "../middleware/auth.js";
-import { createMPCheckout, getMPStatus } from "../services/mercadopago.js";
+import { createMPCheckout, createMPDirectPayment, getMPStatus } from "../services/mercadopago.js";
 import { createStripeCheckout, getStripeStatus, cancelStripeSubscription } from "../services/stripe.js";
 import { logTransaction, getTransactions } from "../services/transactionLog.js";
 
@@ -21,46 +21,100 @@ const PLANS = {
   pro:      { label: "Black Vision Pro",      amount: null,   currency: "BRL", type: "subscription" },
 };
 
-/* POST /api/payments/checkout */
-router.post("/checkout", async (req, res) => {
-  const { tier, customerEmail, customerName, customerPhone, gateway: reqGateway } = req.body || {};
-  const gw = reqGateway || GATEWAY;
+function buildCheckoutPayload(body) {
+  const { tier, customerEmail, customerName, customerPhone, gateway: reqGateway } = body || {};
+  const gw   = reqGateway || GATEWAY;
+  const plan = PLANS[tier];
+
+  if (!plan) return { error: `Plano inválido: ${tier}`, status: 400 };
+  if (!customerEmail) return { error: "customerEmail é obrigatório", status: 400 };
+
+  const baseUrl    = process.env.FRONTEND_URL || "https://blackvision.com.br";
+  const successUrl = `${baseUrl}/checkout/success?plan=${tier}`;
+  const failureUrl = `${baseUrl}/checkout/failure?plan=${tier}`;
+  const pendingUrl = `${baseUrl}/checkout/success?plan=${tier}&status=pending`;
+
+  return {
+    gw,
+    plan,
+    tier,
+    customerEmail,
+    payload: {
+      plan,
+      tier,
+      customer: { email: customerEmail, name: customerName, phone: customerPhone },
+      successUrl,
+      failureUrl,
+      pendingUrl,
+    },
+  };
+}
+
+async function runCheckout({ gw, plan, tier, customerEmail, payload }) {
+  let result;
+
+  if (gw === "stripe") {
+    result = await createStripeCheckout(payload);
+  } else {
+    result = await createMPCheckout(payload);
+  }
+
+  await logTransaction({
+    tier, gateway: gw, status: "pending",
+    amount: plan.amount, currency: plan.currency,
+    customerEmail,
+    sessionId: result.sessionId || result.preferenceId,
+  });
+
+  return result;
+}
+
+/* POST /api/payments/create — PIX / Boleto nativo (sem redirect MP) */
+router.post("/create", async (req, res) => {
+  const { tier, customerEmail, customerName, customerPhone, customerCpf, method } = req.body || {};
 
   const plan = PLANS[tier];
   if (!plan) return res.status(400).json({ message: `Plano inválido: ${tier}` });
   if (!customerEmail) return res.status(400).json({ message: "customerEmail é obrigatório" });
+  if (!["pix", "boleto"].includes(method)) {
+    return res.status(400).json({ message: "method deve ser pix ou boleto" });
+  }
 
-  const baseUrl   = process.env.FRONTEND_URL || "http://localhost:5173";
-  const successUrl = `${baseUrl}/checkout/success?plan=${tier}`;
-  const failureUrl = `${baseUrl}/checkout/failure?plan=${tier}`;
-
-  const payload = {
-    plan,
-    tier,
-    customer: { email: customerEmail, name: customerName, phone: customerPhone },
-    successUrl,
-    failureUrl,
-  };
+  const customer = { email: customerEmail, name: customerName, phone: customerPhone };
 
   try {
-    let result;
+    const result = await createMPDirectPayment({ plan, tier, customer, method, cpf: customerCpf });
 
-    if (gw === "stripe") {
-      result = await createStripeCheckout(payload);
-    } else {
-      result = await createMPCheckout(payload);
-    }
-
-    // Log da transação
     await logTransaction({
-      tier, gateway: gw, status: "pending",
+      tier, gateway: "mercadopago", status: "pending",
       amount: plan.amount, currency: plan.currency,
       customerEmail,
-      sessionId: result.sessionId || result.preferenceId,
+      sessionId: String(result.paymentId),
     });
 
     res.json(result);
+  } catch (err) {
+    console.error("[Payment create]", err.message);
 
+    await logTransaction({
+      tier, gateway: "mercadopago", status: "error",
+      customerEmail, error: err.message,
+    });
+
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/* POST /api/payments/checkout */
+router.post("/checkout", async (req, res) => {
+  const built = buildCheckoutPayload(req.body);
+  if (built.error) return res.status(built.status).json({ message: built.error });
+
+  const { gw, plan, tier, customerEmail, payload } = built;
+
+  try {
+    const result = await runCheckout({ gw, plan, tier, customerEmail, payload });
+    res.json(result);
   } catch (err) {
     console.error("[Payment checkout]", err.message);
 
@@ -70,6 +124,34 @@ router.post("/checkout", async (req, res) => {
     });
 
     res.status(500).json({ message: "Erro ao criar checkout: " + err.message });
+  }
+});
+
+/* POST /api/payments/checkout/redirect — redirect HTTP 303 direto ao MP (sem JS no front) */
+router.post("/checkout/redirect", async (req, res) => {
+  const built = buildCheckoutPayload(req.body);
+  if (built.error) {
+    const base = process.env.FRONTEND_URL || "https://blackvision.com.br";
+    return res.redirect(303, `${base}/checkout/failure?plan=${req.body?.tier || "basic"}&error=${encodeURIComponent(built.error)}`);
+  }
+
+  const { gw, plan, tier, customerEmail, payload } = built;
+
+  try {
+    const result = await runCheckout({ gw, plan, tier, customerEmail, payload });
+    const mpUrl    = result.checkoutUrl || result.initPoint || result.sessionId;
+    if (!mpUrl) throw new Error("URL de checkout não retornada pelo gateway");
+    return res.redirect(303, mpUrl);
+  } catch (err) {
+    console.error("[Payment checkout/redirect]", err.message);
+
+    await logTransaction({
+      tier, gateway: gw, status: "error",
+      customerEmail, error: err.message,
+    });
+
+    const base = process.env.FRONTEND_URL || "https://blackvision.com.br";
+    return res.redirect(303, `${base}/checkout/failure?plan=${tier}&error=${encodeURIComponent(err.message)}`);
   }
 });
 

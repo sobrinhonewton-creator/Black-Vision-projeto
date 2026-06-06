@@ -58,6 +58,20 @@ export async function createCheckout(payload) {
 }
 
 /**
+ * Cria pagamento PIX ou Boleto direto (QR/código no site, sem redirect MP)
+ * @param {{ tier: PlanTier, method: 'pix'|'boleto', customerEmail: string, customerName?: string, customerPhone?: string, customerCpf: string }} payload
+ */
+export async function createDirectPayment(payload) {
+  try {
+    const { data } = await api.post("/api/payments/create", payload);
+    return { success: true, ...data };
+  } catch (err) {
+    const message = err.response?.data?.message || err.message;
+    return { success: false, error: message };
+  }
+}
+
+/**
  * Verifica o status de um pagamento
  * @param {string} paymentId
  */
