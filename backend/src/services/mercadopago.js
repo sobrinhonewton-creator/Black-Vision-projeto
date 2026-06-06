@@ -110,14 +110,16 @@ function buildPayer(customer, cpf) {
   const doc   = String(cpf || "").replace(/\D/g, "");
   const address = customer.address || {};
 
-  const normalizedAddress = Object.keys(address || {}).length ? {
-    zip_code: String(address.zip_code || address.zip || "").replace(/\D/g, ""),
-    street_name: address.street_name || address.street || "",
-    street_number: String(address.street_number || address.number || ""),
-    neighborhood: address.neighborhood || address.district || "",
-    city: address.city || "",
-    federal_unit: (address.federal_unit || address.state || "").toUpperCase(),
-  } : undefined;
+  const normalizedAddress = {
+    zip_code: String(address.zip_code || address.zip || "").replace(/\D/g, "").trim(),
+    street_name: String(address.street_name || address.street || "").trim(),
+    street_number: String(address.street_number || address.number || "").trim(),
+    neighborhood: String(address.neighborhood || address.district || "").trim(),
+    city: String(address.city || "").trim(),
+    federal_unit: String(address.federal_unit || address.state || "").trim().toUpperCase(),
+  };
+
+  const hasAddress = Object.values(normalizedAddress).every((value) => value);
 
   return {
     email:      customer.email,
@@ -125,7 +127,7 @@ function buildPayer(customer, cpf) {
     last_name:  parts.slice(1).join(" ") || parts[0] || "Black Vision",
     ...(phone ? { phone } : {}),
     ...(doc.length === 11 ? { identification: { type: "CPF", number: doc } } : {}),
-    ...(normalizedAddress ? { address: normalizedAddress } : {}),
+    ...(hasAddress ? { address: normalizedAddress } : {}),
   };
 }
 

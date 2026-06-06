@@ -69,9 +69,36 @@ async function runCheckout({ gw, plan, tier, customerEmail, payload }) {
   return result;
 }
 
+function normalizeAddress(address) {
+  const raw = address || {};
+  return {
+    zip_code: String(raw.zip_code || raw.zip || raw.cep || "").replace(/\D/g, "").trim(),
+    street_name: String(raw.street_name || raw.street || raw.logradouro || "").trim(),
+    street_number: String(raw.street_number || raw.number || raw.numero || "").trim(),
+    neighborhood: String(raw.neighborhood || raw.district || raw.bairro || "").trim(),
+    city: String(raw.city || raw.locality || raw.cidade || "").trim(),
+    federal_unit: String(raw.federal_unit || raw.state || raw.uf || "").trim().toUpperCase(),
+  };
+}
+
+function getMissingAddressFields(address) {
+  const required = ["zip_code", "street_name", "street_number", "neighborhood", "city", "federal_unit"];
+  return required.filter((key) => !String(address[key] || "").trim());
+}
+
 /* POST /api/payments/create — PIX / Boleto nativo (sem redirect MP) */
 router.post("/create", async (req, res) => {
-  const { tier, customerEmail, customerName, customerPhone, customerCpf, method, customerAddress } = req.body || {};
+  const {
+    tier,
+    customerEmail,
+    customerName,
+    customerPhone,
+    customerCpf,
+    method,
+    customerAddress,
+    address,
+    customer_address,
+  } = req.body || {};
 
   const plan = PLANS[tier];
   if (!plan) return res.status(400).json({ message: `Plano inválido: ${tier}` });
@@ -80,7 +107,24 @@ router.post("/create", async (req, res) => {
     return res.status(400).json({ message: "method deve ser pix ou boleto" });
   }
 
-  const customer = { email: customerEmail, name: customerName, phone: customerPhone, address: customerAddress };
+  const normalizedAddress = normalizeAddress(customerAddress || address || customer_address || {});
+
+  if (method === "boleto") {
+    const missing = getMissingAddressFields(normalizedAddress);
+    if (missing.length) {
+      return res.status(400).json({
+        message: `Boleto registrado exige endereço completo: ${missing.join(", ")}`,
+        missing,
+      });
+    }
+  }
+
+  const customer = {
+    email: customerEmail,
+    name: customerName,
+    phone: customerPhone,
+    address: normalizedAddress,
+  };
 
   try {
     const result = await createMPDirectPayment({ plan, tier, customer, method, cpf: customerCpf });

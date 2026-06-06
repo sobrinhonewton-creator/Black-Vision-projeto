@@ -13,9 +13,14 @@ export function initFirebase() {
   if (_initFailed) return false;
 
   try {
-    const projectId   = process.env.FIREBASE_PROJECT_ID?.replace(/[",]/g, "").trim();
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.replace(/[",]/g, "").trim();
-    const privateKey  = process.env.FIREBASE_PRIVATE_KEY?.replace(/[",]/g, "").trim().replace(/\\n/g, "\n");
+    const projectId   = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+    const rawKey      = process.env.FIREBASE_PRIVATE_KEY || "";
+    const privateKey  = rawKey
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\r")
+      .replace(/^"|"$/g, "")
+      .trim();
 
     if (!projectId || !clientEmail || !privateKey) {
       throw new Error("Variáveis FIREBASE_* ausentes no .env");
