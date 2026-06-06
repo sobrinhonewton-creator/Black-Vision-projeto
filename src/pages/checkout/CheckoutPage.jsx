@@ -32,7 +32,7 @@ export default function CheckoutPage() {
   const plan       = PLANS[planId] || PLANS.advanced;
   const pollRef    = useRef(null);
 
-  const [form, setForm]         = useState({ name: "", email: "", phone: "", cpf: "" });
+  const [form, setForm]         = useState({ name: "", email: "", phone: "", cpf: "", zip: "", street: "", number: "", neighborhood: "", city: "", state: "" });
   const [method, setMethod]     = useState("pix");
   const [errors, setErrors]     = useState({});
   const [loading, setLoading]   = useState(false);
@@ -78,13 +78,23 @@ export default function CheckoutPage() {
 
   function validate() {
     const e = {};
-    if (!form.name.trim()) e.name = "Nome e obrigatorio";
-    if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = "E-mail invalido";
-    if (!form.phone.replace(/\D/g, "").match(/^\d{10,11}$/)) e.phone = "Telefone invalido";
+    if (!form.name.trim()) e.name = "Nome é obrigatório";
+    if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = "E-mail inválido";
+    if (!form.phone.replace(/\D/g, "").match(/^\d{10,11}$/)) e.phone = "Telefone inválido";
     if (method !== "card") {
-      const cpf = form.cpf.replace(/\D/g, "");
-      if (!/^\d{11}$/.test(cpf)) e.cpf = "CPF invalido (11 digitos)";
+      const cpf = String(form.cpf || "").replace(/\D/g, "");
+      if (!/^\d{11}$/.test(cpf)) e.cpf = "CPF inválido (11 dígitos)";
     }
+
+    if (method === "boleto") {
+      if (!String(form.zip || "").replace(/\D/g, "").match(/^\d{8}$/)) e.zip = "CEP inválido (8 dígitos)";
+      if (!String(form.street || "").trim()) e.street = "Rua é obrigatória";
+      if (!String(form.number || "").trim()) e.number = "Número é obrigatório";
+      if (!String(form.neighborhood || "").trim()) e.neighborhood = "Bairro é obrigatório";
+      if (!String(form.city || "").trim()) e.city = "Cidade é obrigatória";
+      if (!String(form.state || "").trim() || !/^[A-Za-z]{2}$/.test(form.state)) e.state = "UF inválida (2 letras)";
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -123,14 +133,24 @@ export default function CheckoutPage() {
       return;
     }
 
-    const result = await createDirectPayment({
+    const payload = {
       tier:          planId,
       method,
       customerName:  form.name,
       customerEmail: form.email,
       customerPhone: form.phone,
       customerCpf:   form.cpf,
-    });
+      customerAddress: {
+        zip_code: form.zip,
+        street_name: form.street,
+        street_number: form.number,
+        neighborhood: form.neighborhood,
+        city: form.city,
+        federal_unit: form.state,
+      },
+    };
+
+    const result = await createDirectPayment(payload);
 
     setLoading(false);
 
@@ -294,15 +314,81 @@ export default function CheckoutPage() {
                     {errors.phone && <span className="co-field-error">{errors.phone}</span>}
                   </div>
                   {method !== "card" && (
-                    <div className="co-field">
-                      <label htmlFor="co-cpf">CPF</label>
-                      <input
-                        id="co-cpf" type="text" placeholder="000.000.000-00"
-                        value={form.cpf} onChange={set("cpf")}
-                        className={errors.cpf ? "error" : ""}
-                      />
-                      {errors.cpf && <span className="co-field-error">{errors.cpf}</span>}
-                    </div>
+                    <>
+                      <div className="co-field">
+                        <label htmlFor="co-cpf">CPF</label>
+                        <input
+                          id="co-cpf" type="text" placeholder="000.000.000-00"
+                          value={form.cpf} onChange={set("cpf")}
+                          className={errors.cpf ? "error" : ""}
+                        />
+                        {errors.cpf && <span className="co-field-error">{errors.cpf}</span>}
+                      </div>
+
+                      {method === "boleto" && (
+                        <>
+                          <div className="co-field">
+                            <label htmlFor="co-zip">CEP</label>
+                            <input
+                              id="co-zip" type="text" placeholder="00000-000"
+                              value={form.zip} onChange={set("zip")}
+                              className={errors.zip ? "error" : ""}
+                            />
+                            {errors.zip && <span className="co-field-error">{errors.zip}</span>}
+                          </div>
+
+                          <div className="co-field">
+                            <label htmlFor="co-street">Rua</label>
+                            <input
+                              id="co-street" type="text" placeholder="Rua Exemplo"
+                              value={form.street} onChange={set("street")}
+                              className={errors.street ? "error" : ""}
+                            />
+                            {errors.street && <span className="co-field-error">{errors.street}</span>}
+                          </div>
+
+                          <div className="co-field">
+                            <label htmlFor="co-number">Número</label>
+                            <input
+                              id="co-number" type="text" placeholder="123"
+                              value={form.number} onChange={set("number")}
+                              className={errors.number ? "error" : ""}
+                            />
+                            {errors.number && <span className="co-field-error">{errors.number}</span>}
+                          </div>
+
+                          <div className="co-field">
+                            <label htmlFor="co-neighborhood">Bairro</label>
+                            <input
+                              id="co-neighborhood" type="text" placeholder="Centro"
+                              value={form.neighborhood} onChange={set("neighborhood")}
+                              className={errors.neighborhood ? "error" : ""}
+                            />
+                            {errors.neighborhood && <span className="co-field-error">{errors.neighborhood}</span>}
+                          </div>
+
+                          <div className="co-field">
+                            <label htmlFor="co-city">Cidade</label>
+                            <input
+                              id="co-city" type="text" placeholder="Salvador"
+                              value={form.city} onChange={set("city")}
+                              className={errors.city ? "error" : ""}
+                            />
+                            {errors.city && <span className="co-field-error">{errors.city}</span>}
+                          </div>
+
+                          <div className="co-field">
+                            <label htmlFor="co-state">UF</label>
+                            <input
+                              id="co-state" type="text" placeholder="BA"
+                              value={form.state} onChange={set("state")}
+                              className={errors.state ? "error" : ""}
+                            />
+                            {errors.state && <span className="co-field-error">{errors.state}</span>}
+                          </div>
+                        </>
+                      )}
+                    </>
                   )}
 
                   {errorMsg && (

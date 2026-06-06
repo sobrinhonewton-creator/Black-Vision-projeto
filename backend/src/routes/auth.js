@@ -14,6 +14,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "getblackvision.br@gmail.com";
 // Em produção: hash bcrypt. Aqui usamos sha256 simples para zero deps.
 // Gere: node -e "console.log(require('crypto').createHash('sha256').update('SuaSenha').digest('hex'))"
 const ADMIN_HASH  = process.env.ADMIN_PASSWORD_HASH || "";
+const ADMIN_PLAIN = process.env.ADMIN_PASSWORD || null;
 const ADMIN_PASS_DEV = process.env.NODE_ENV === "development" ? "Rihanna26" : null;
 
 function hashPassword(plain) {
@@ -31,6 +32,7 @@ router.post("/login", (req, res) => {
   const emailMatch = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const passHash   = hashPassword(password);
   const passMatch  = (ADMIN_HASH && passHash === ADMIN_HASH) ||
+                     (ADMIN_PLAIN && password === ADMIN_PLAIN) ||
                      (ADMIN_PASS_DEV && password === ADMIN_PASS_DEV);
 
   if (!emailMatch || !passMatch) {

@@ -71,7 +71,7 @@ async function runCheckout({ gw, plan, tier, customerEmail, payload }) {
 
 /* POST /api/payments/create — PIX / Boleto nativo (sem redirect MP) */
 router.post("/create", async (req, res) => {
-  const { tier, customerEmail, customerName, customerPhone, customerCpf, method } = req.body || {};
+  const { tier, customerEmail, customerName, customerPhone, customerCpf, method, customerAddress } = req.body || {};
 
   const plan = PLANS[tier];
   if (!plan) return res.status(400).json({ message: `Plano inválido: ${tier}` });
@@ -80,7 +80,7 @@ router.post("/create", async (req, res) => {
     return res.status(400).json({ message: "method deve ser pix ou boleto" });
   }
 
-  const customer = { email: customerEmail, name: customerName, phone: customerPhone };
+  const customer = { email: customerEmail, name: customerName, phone: customerPhone, address: customerAddress };
 
   try {
     const result = await createMPDirectPayment({ plan, tier, customer, method, cpf: customerCpf });
