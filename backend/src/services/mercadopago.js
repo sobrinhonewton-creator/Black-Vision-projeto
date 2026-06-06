@@ -12,10 +12,18 @@
 import { randomUUID } from "crypto";
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
+const DEFAULT_BACKEND_URL = "https://black-vision-backend-production.up.railway.app";
+
 function getClient() {
   const token = process.env.MP_ACCESS_TOKEN;
   if (!token) throw new Error("MP_ACCESS_TOKEN não configurado no .env");
   return new MercadoPagoConfig({ accessToken: token, options: { timeout: 10000 } });
+}
+
+function getNotificationUrl() {
+  const base = (process.env.BACKEND_URL || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+  if (!/^https?:\/\//.test(base)) return null;
+  return `${base}/api/webhooks/mercadopago`;
 }
 
 function parseBRPhone(raw) {
@@ -68,9 +76,9 @@ export async function createMPCheckout({ plan, tier, customer, successUrl, failu
     },
     auto_return:          "approved",
     statement_descriptor: "BLACK VISION",
-    external_reference:   `bv_${tier}_${Date.now()}`,
-    notification_url:     `${process.env.BACKEND_URL}/api/webhooks/mercadopago`,
-    expires:              false,
+    external_reference: `bv_${tier}_${Date.now()}`,
+    ...(getNotificationUrl() ? { notification_url: getNotificationUrl() } : {}),
+    expires:            false,
   };
 
   const result = await preference.create({ body });
@@ -133,7 +141,7 @@ export async function createMPDirectPayment({ plan, tier, customer, method, cpf 
     payment_method_id:  paymentMethodId,
     payer,
     external_reference: `bv_${tier}_${Date.now()}`,
-    notification_url:   `${process.env.BACKEND_URL}/api/webhooks/mercadopago`,
+    ...(getNotificationUrl() ? { notification_url: getNotificationUrl() } : {}),
   };
 
   try {
