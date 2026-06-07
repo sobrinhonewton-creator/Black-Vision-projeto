@@ -10,13 +10,11 @@ import { signToken, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "getblackvision.br@gmail.com").trim();
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL?.trim() || "getblackvision.br@gmail.com");
 // Em produção: hash bcrypt. Aqui usamos sha256 simples para zero deps.
 // Gere: node -e "console.log(require('crypto').createHash('sha256').update('SuaSenha').digest('hex'))"
 const ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH?.trim() || "";
-const ADMIN_PLAIN = process.env.ADMIN_PASSWORD?.trim() || "";
-const ADMIN_FALLBACK = "Rihanna26";
-const ADMIN_FALLBACK_ENABLED = !process.env.ADMIN_PASSWORD_HASH && !process.env.ADMIN_PASSWORD;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD?.trim() || "Rihanna26";
 
 function hashPassword(plain) {
   return crypto.createHash("sha256").update(plain).digest("hex");
@@ -33,8 +31,7 @@ router.post("/login", (req, res) => {
   const emailMatch = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const passHash = hashPassword(password);
   const passMatch = (ADMIN_HASH && passHash === ADMIN_HASH) ||
-                    (ADMIN_PLAIN && password === ADMIN_PLAIN) ||
-                    (ADMIN_FALLBACK_ENABLED && password === ADMIN_FALLBACK);
+                    password === ADMIN_PASSWORD;
 
   if (!emailMatch || !passMatch) {
     return res.status(401).json({ message: "Credenciais inválidas" });
