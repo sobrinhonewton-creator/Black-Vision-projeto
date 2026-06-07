@@ -21,6 +21,9 @@ import PricingSection from './sections/PricingSection.jsx'
 import Testimonials  from './sections/Testimonials.jsx'
 import Contact       from './sections/Contact.jsx'
 
+import useCursorSpotlight from './hooks/useCursorSpotlight.js'
+import useScrollReveal from './hooks/useScrollReveal.js'
+
 import Login     from "./admin/Login";
 import Dashboard from "./admin/Dashboard";
 
@@ -55,6 +58,9 @@ export default function App() {
     fetchContent();
     trackPageView();
   }, []);
+
+  useCursorSpotlight()
+  useScrollReveal()
 
   return (
     <ToastProvider>

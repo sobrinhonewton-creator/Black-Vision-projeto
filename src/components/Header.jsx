@@ -13,6 +13,7 @@ const NAV_LINKS = [
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false)
+  const [scrollProgress, setScrollProgress] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
   const tickingRef = useRef(false)
 
@@ -21,6 +22,9 @@ export default function Header() {
     if (!tickingRef.current) {
       window.requestAnimationFrame(() => {
         setScrolled(window.scrollY > 40)
+        const documentHeight = document.documentElement.scrollHeight - window.innerHeight
+        const progress = documentHeight > 0 ? (window.scrollY / documentHeight) * 100 : 0
+        setScrollProgress(Math.max(0, Math.min(100, progress)))
         tickingRef.current = false
       })
       tickingRef.current = true
@@ -52,6 +56,7 @@ export default function Header() {
   return (
     <>
       <header className={`nav ${scrolled ? 'scrolled' : ''}`}>
+        <div className="nav-progress" style={{ width: `${scrollProgress}%` }} aria-hidden="true" />
         <div className="container">
           <nav className="nav-inner">
             {/* Logo */}

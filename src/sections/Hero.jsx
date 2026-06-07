@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useInView } from '../hooks/useInView.js'
 import useContentStore from '../store/contentStore.js'
 import { trackWhatsAppClick, trackPlanView } from '../services/tracking.js'
+import TerminalDemo from '../components/TerminalDemo.jsx'
 
 export default function Hero() {
   const [ref, inView] = useInView({ threshold: 0.05 })
@@ -86,6 +87,7 @@ export default function Hero() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-primary pulse"
+                data-terminal-command="deploy --ia-workflow"
                 onClick={() => trackWhatsAppClick()}
               >
                 <WaIcon />
@@ -102,6 +104,8 @@ export default function Hero() {
                 Ver Soluções →
               </a>
             </div>
+
+            <TerminalDemo />
 
             <div className={`hero-stats fade-up delay-4 ${inView ? 'visible' : ''}`}>
               {STATS.map(([num, label]) => (

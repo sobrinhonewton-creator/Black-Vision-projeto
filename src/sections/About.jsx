@@ -63,6 +63,7 @@ export default function About() {
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary pulse"
+            data-terminal-command="audit --process-flow"
             style={{ fontSize: '1rem', padding: '1rem 2.5rem' }}
           >
             Agendar Diagnóstico Gratuito →

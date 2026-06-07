@@ -97,6 +97,7 @@ export default function Contact() {
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary pulse"
+            data-terminal-command="ai-status --pipeline"
             onClick={() => trackWhatsAppClick()}
             style={{ fontSize: '1rem', padding: '1rem 2.5rem' }}
           >

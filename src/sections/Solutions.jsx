@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { trackCardClick } from "../services/tracking.js";
 import { useInView } from '../hooks/useInView.js'
 import useContentStore from '../store/contentStore.js'
@@ -12,6 +13,41 @@ export default function Solutions() {
   const [ref, inView] = useInView()
   const { content } = useContentStore()
   const cards = content?.cards?.filter(c => c.active) || []
+  const tiltFrame = useRef(null)
+
+  const handleTiltMove = (event) => {
+    if (window.matchMedia('(max-width: 767px), (prefers-reduced-motion: reduce)').matches) return
+    const card = event.currentTarget
+    const rect = card.getBoundingClientRect()
+    const x = (event.clientX - rect.left) / rect.width
+    const y = (event.clientY - rect.top) / rect.height
+    const rotateX = (y - 0.5) * 14
+    const rotateY = (x - 0.5) * -14
+    const moveX = (x - 0.5) * 12
+    const moveY = (y - 0.5) * 12
+    const content = card.querySelector('.solution-card-content')
+    const bg = card.querySelector('.solution-card-bg')
+
+    if (tiltFrame.current) window.cancelAnimationFrame(tiltFrame.current)
+    tiltFrame.current = window.requestAnimationFrame(() => {
+      card.style.transform = `perspective(950px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
+      if (bg) bg.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.06)`
+      if (content) content.style.transform = `translate(${moveX * 0.45}px, ${moveY * 0.45}px)`
+    })
+  }
+
+  const handleTiltLeave = (event) => {
+    const card = event.currentTarget
+    const content = card.querySelector('.solution-card-content')
+    const bg = card.querySelector('.solution-card-bg')
+    if (tiltFrame.current) {
+      window.cancelAnimationFrame(tiltFrame.current)
+      tiltFrame.current = null
+    }
+    card.style.transform = ''
+    if (bg) bg.style.transform = ''
+    if (content) content.style.transform = ''
+  }
 
   return (
     <section id="solutions">
@@ -35,9 +71,11 @@ export default function Solutions() {
         <div className="solutions-grid">
           {cards.map((s, i) => (
             <div
-  key={s.tag || i}
-  className={`solution-card fade-up delay-${i + 1} ${inView ? 'visible' : ''}`}
-  onClick={() => trackCardClick()}
+              key={s.tag || i}
+              className={`solution-card fade-up delay-${i + 1} ${inView ? 'visible' : ''}`}
+              onMouseMove={handleTiltMove}
+              onMouseLeave={handleTiltLeave}
+              onClick={() => trackCardClick()}
             >
               {/* Imagem de fundo */}
               <div
