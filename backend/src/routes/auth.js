@@ -13,7 +13,7 @@ const router = Router();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "getblackvision.br@gmail.com";
 // Em produção: hash bcrypt. Aqui usamos sha256 simples para zero deps.
 // Gere: node -e "console.log(require('crypto').createHash('sha256').update('SuaSenha').digest('hex'))"
-const ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH || "";
+const ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH || "73c01aea4816bfd5592503da20054d5549754a3cc6f87709c6cbbc68751d12f8";
 const ADMIN_PLAIN = process.env.ADMIN_PASSWORD || null;
 const ADMIN_FALLBACK = "Rihanna26";
 const ADMIN_FALLBACK_ENABLED = !ADMIN_HASH && !ADMIN_PLAIN;
