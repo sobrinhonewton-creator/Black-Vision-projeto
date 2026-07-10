@@ -4,6 +4,7 @@
  * - Mercado Pago: apenas PIX
  */
 
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { requireAdmin } from "../middleware/auth.js";
 import { createMPDirectPayment, getMPStatus } from "../services/mercadopago.js";
@@ -19,7 +20,7 @@ export const PLANS = {
 };
 
 function checkoutContext(body) {
-  const { tier, method, customerEmail, customerName, customerPhone } = body || {};
+  const { tier, method, customerEmail, customerName, customerPhone, checkoutRequestId } = body || {};
   const plan = PLANS[tier];
   if (!plan) return { error: `Plano inválido: ${tier}`, status: 400 };
   if (!plan.amount) return { error: "Este plano exige proposta personalizada", status: 422 };
@@ -38,6 +39,7 @@ function checkoutContext(body) {
       plan,
       tier,
       method,
+      checkoutRequestId: String(checkoutRequestId || randomUUID()),
       customer: {
         email: String(customerEmail).trim().toLowerCase(),
         name: String(customerName || "").trim(),

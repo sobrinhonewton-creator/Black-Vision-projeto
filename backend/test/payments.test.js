@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
-import { buildStripeCheckoutParams } from "../src/services/stripe.js";
+import { buildStripeCheckoutParams, checkoutIdempotencyKey } from "../src/services/stripe.js";
 import { processMPWebhook } from "../src/services/mercadopago.js";
 
 const baseInput = {
@@ -10,6 +10,7 @@ const baseInput = {
   customer: { email: "cliente@example.com", name: "Cliente Teste", phone: "73999999999" },
   successUrl: "https://blackvision.com.br/checkout/success?plan=basic",
   failureUrl: "https://blackvision.com.br/checkout/failure?plan=basic",
+  checkoutRequestId: "checkout-test-123",
 };
 
 test("Stripe Checkout separa cartao e boleto em BRL", () => {
@@ -25,6 +26,14 @@ test("Stripe Checkout separa cartao e boleto em BRL", () => {
   assert.equal(boleto.tax_id_collection.enabled, true);
   assert.equal(boleto.payment_method_options.boleto.expires_after_days, 3);
   assert.match(boleto.success_url, /\{CHECKOUT_SESSION_ID\}/);
+});
+
+test("cada tentativa de checkout exige uma chave idempotente propria", () => {
+  assert.equal(
+    checkoutIdempotencyKey({ checkoutRequestId: "attempt-123" }),
+    "blackvision-checkout-attempt-123"
+  );
+  assert.throws(() => checkoutIdempotencyKey({ checkoutRequestId: "" }), /checkoutRequestId/);
 });
 
 test("webhook Mercado Pago valida assinatura oficial", () => {

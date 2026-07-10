@@ -43,7 +43,9 @@ export const PLANS = {
  */
 export async function createCheckout(payload) {
   try {
-    const { data } = await api.post("/api/payments/checkout", payload);
+    const checkoutRequestId = globalThis.crypto?.randomUUID?.()
+      || `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const { data } = await api.post("/api/payments/checkout", { ...payload, checkoutRequestId });
     return { success: true, ...data };
   } catch (err) {
     const message = err.response?.data?.message || err.message;

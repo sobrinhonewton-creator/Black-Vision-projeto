@@ -2,7 +2,6 @@
  * Stripe Checkout — cartão e boleto da Black Vision.
  */
 
-import { createHash } from "node:crypto";
 import Stripe from "stripe";
 
 let stripeInstance;
@@ -16,12 +15,10 @@ function getStripe() {
   return stripeInstance;
 }
 
-function checkoutIdempotencyKey({ tier, method, customer }) {
-  const identity = createHash("sha256")
-    .update(String(customer.email || "").trim().toLowerCase())
-    .digest("hex")
-    .slice(0, 16);
-  return `blackvision-${tier}-${method}-${identity}-${Math.floor(Date.now() / 600_000)}`;
+export function checkoutIdempotencyKey({ checkoutRequestId }) {
+  const requestId = String(checkoutRequestId || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+  if (!requestId) throw new Error("checkoutRequestId é obrigatório");
+  return `blackvision-checkout-${requestId}`;
 }
 
 export function buildStripeCheckoutParams({ plan, tier, method, customer, successUrl, failureUrl }) {
