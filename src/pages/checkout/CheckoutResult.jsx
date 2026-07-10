@@ -31,22 +31,24 @@ export function CheckoutSuccess() {
   const [status, setStatus] = useState("loading");
 
   useEffect(() => {
-    if (!paymentId) { setStatus("approved"); return; }
+    if (!paymentId) { setStatus("unknown"); return; }
 
     getPaymentStatus(paymentId).then(res => {
-      const s = res.status === "approved" ? "approved" : res.status || "approved";
+      const s = ["approved", "pending", "rejected", "cancelled"].includes(res.status)
+        ? res.status
+        : "unknown";
       setStatus(s);
       if (s === "approved") {
         trackCheckoutSuccess(params.get("plan") || "unknown");
       }
-    }).catch(() => setStatus("approved")); // optimistic on error
+    }).catch(() => setStatus("unknown"));
   }, [paymentId, params]);
 
   return (
     <ResultShell>
       {status === "loading" ? (
         <div className="cr-spinner-wrap"><div className="cr-spinner" /></div>
-      ) : (
+      ) : status === "approved" ? (
         <>
           <div className="cr-icon cr-icon--success">
             <svg width="36" height="36" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -71,6 +73,35 @@ export function CheckoutSuccess() {
             </a>
             <button className="cr-btn cr-btn-ghost" onClick={() => navigate("/")}>
               Voltar ao site
+            </button>
+          </div>
+        </>
+      ) : status === "pending" ? (
+        <>
+          <div className="cr-icon cr-icon--pending">⌛</div>
+          <h1 className="cr-title">Pagamento em processamento</h1>
+          <p className="cr-sub">
+            Recebemos a solicitação. Boleto e alguns pagamentos podem levar mais tempo para confirmar.
+            A entrega só será iniciada após a confirmação do provedor.
+          </p>
+          {paymentId && <div className="cr-id">ID: <code>{paymentId}</code></div>}
+          <div className="cr-actions">
+            <button className="cr-btn cr-btn-ghost" onClick={() => window.location.reload()}>
+              Verificar novamente
+            </button>
+            <button className="cr-btn cr-btn-ghost" onClick={() => navigate("/")}>Voltar ao site</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="cr-icon cr-icon--error">!</div>
+          <h1 className="cr-title">Pagamento ainda não confirmado</h1>
+          <p className="cr-sub">
+            Não foi possível confirmar o pagamento neste momento. Nenhuma entrega será liberada sem a validação do provedor.
+          </p>
+          <div className="cr-actions">
+            <button className="cr-btn cr-btn-primary" onClick={() => navigate(`/checkout?plan=${params.get("plan") || "advanced"}`)}>
+              Voltar ao checkout
             </button>
           </div>
         </>
@@ -151,6 +182,7 @@ const resultCSS = `
     margin: 0 auto 1.5rem;
   }
   .cr-icon--success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.25); color: #22c55e; }
+  .cr-icon--pending { background: rgba(201,168,76,.12); border: 1px solid rgba(201,168,76,.25); color: #c9a84c; font-size: 1.6rem; }
   .cr-icon--error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.2);  color: #f87171; }
   .cr-title { font-family: var(--font-title); font-size: 1.8rem; font-weight: 800; letter-spacing: -.04em; margin-bottom: .75rem; }
   .cr-sub { font-size: .9rem; color: var(--text-muted); font-weight: 300; line-height: 1.7; margin-bottom: 1.5rem; }

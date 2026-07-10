@@ -1,108 +1,122 @@
 /**
- * services/stripe.js
- * Integração com Stripe SDK
- *
- * CORREÇÃO: getStripe() era sync mas usava await — convertida para async.
+ * Stripe Checkout — cartão e boleto da Black Vision.
  */
 
+import { createHash } from "node:crypto";
 import Stripe from "stripe";
 
-async function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key || key.startsWith("sk_live_xxx")) throw new Error("STRIPE_SECRET_KEY não configurado");
-  return new Stripe(key, { apiVersion: "2024-04-10" });
+let stripeInstance;
+
+function getStripe() {
+  const key = String(process.env.STRIPE_SECRET_KEY || "").trim();
+  if (!key) throw new Error("STRIPE_SECRET_KEY não configurado");
+  if (!stripeInstance) {
+    stripeInstance = new Stripe(key, { maxNetworkRetries: 2, timeout: 12_000 });
+  }
+  return stripeInstance;
 }
 
-/**
- * Cria Checkout Session (hosted page)
- */
-export async function createStripeCheckout({ plan, tier, customer, successUrl, failureUrl }) {
-  const stripe = await getStripe();
+function checkoutIdempotencyKey({ tier, method, customer }) {
+  const identity = createHash("sha256")
+    .update(String(customer.email || "").trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 16);
+  return `blackvision-${tier}-${method}-${identity}-${Math.floor(Date.now() / 600_000)}`;
+}
 
-  const session = await stripe.checkout.sessions.create({
-    mode:               plan.type === "subscription" ? "subscription" : "payment",
-    customer_email:     customer.email,
-    success_url:        successUrl + "&session_id={CHECKOUT_SESSION_ID}",
-    cancel_url:         failureUrl,
-    metadata:           { tier, customerName: customer.name || "", customerPhone: customer.phone || "" },
+export function buildStripeCheckoutParams({ plan, tier, method, customer, successUrl, failureUrl }) {
+  if (!plan?.amount) throw new Error("Plano sem valor definido");
+  if (!["card", "boleto"].includes(method)) throw new Error("Método Stripe inválido");
+
+  const metadata = {
+    product: "Black Vision",
+    tier,
+    payment_method: method,
+    customer_name: String(customer.name || "").slice(0, 120),
+    customer_phone: String(customer.phone || "").slice(0, 40),
+  };
+
+  return {
+    mode: "payment",
+    customer_email: customer.email,
+    client_reference_id: `blackvision:${tier}`,
+    success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: failureUrl,
+    locale: "pt-BR",
+    payment_method_types: [method],
+    billing_address_collection: method === "boleto" ? "required" : "auto",
+    phone_number_collection: { enabled: true },
+    tax_id_collection: { enabled: method === "boleto" },
+    ...(method === "boleto"
+      ? { payment_method_options: { boleto: { expires_after_days: 3 } } }
+      : {}),
+    metadata,
+    payment_intent_data: { metadata },
     line_items: [
       {
         quantity: 1,
         price_data: {
-          currency:     "brl",
-          unit_amount:  plan.amount || 100, // centavos
+          currency: "brl",
+          unit_amount: plan.amount,
           product_data: {
-            name:        plan.label,
+            name: plan.label,
             description: `Plano ${tier} — Black Vision`,
+            metadata: { tier },
           },
-          ...(plan.type === "subscription"
-            ? { recurring: { interval: "month" } }
-            : {}),
         },
       },
     ],
-    payment_method_types: ["card"],
-    locale:               "pt-BR",
-  });
-
-  return {
-    sessionId:   session.id,
-    checkoutUrl: session.url,
   };
 }
 
-/**
- * Busca status de uma session ou payment_intent
- */
+export async function createStripeCheckout(input) {
+  const stripe = getStripe();
+  const params = buildStripeCheckoutParams(input);
+  const session = await stripe.checkout.sessions.create(params, {
+    idempotencyKey: checkoutIdempotencyKey(input),
+  });
+  return { sessionId: session.id, checkoutUrl: session.url, provider: "stripe" };
+}
+
 export async function getStripeStatus(id) {
-  const stripe = await getStripe();
-
-  try {
-    let status = "unknown";
-    let detail = {};
-
-    if (id.startsWith("cs_")) {
-      const session = await stripe.checkout.sessions.retrieve(id);
-      const statusMap = { complete: "approved", expired: "cancelled", open: "pending" };
-      status = statusMap[session.status] || session.status;
-      detail = {
-        id:            session.id,
+  const stripe = getStripe();
+  if (id.startsWith("cs_")) {
+    const session = await stripe.checkout.sessions.retrieve(id);
+    const status = session.payment_status === "paid"
+      ? "approved"
+      : session.status === "expired"
+        ? "cancelled"
+        : "pending";
+    return {
+      status,
+      detail: {
+        id: session.id,
         paymentStatus: session.payment_status,
-        customerEmail: session.customer_email,
-        amount:        session.amount_total,
-        currency:      session.currency,
-      };
-    } else if (id.startsWith("pi_")) {
-      const pi = await stripe.paymentIntents.retrieve(id);
-      const statusMap = { succeeded: "approved", canceled: "cancelled" };
-      status = statusMap[pi.status] || pi.status;
-      detail = { id: pi.id, amount: pi.amount, currency: pi.currency };
-    }
-
-    return { status, detail };
-  } catch (err) {
-    return { status: "unknown", detail: { error: err.message } };
+        sessionStatus: session.status,
+        customerEmail: session.customer_details?.email || session.customer_email,
+        amount: session.amount_total,
+        currency: session.currency,
+      },
+    };
   }
+  if (id.startsWith("pi_")) {
+    const paymentIntent = await stripe.paymentIntents.retrieve(id);
+    const statusMap = { succeeded: "approved", canceled: "cancelled", processing: "pending" };
+    return {
+      status: statusMap[paymentIntent.status] || paymentIntent.status,
+      detail: { id: paymentIntent.id, amount: paymentIntent.amount, currency: paymentIntent.currency },
+    };
+  }
+  throw new Error("Identificador Stripe inválido");
 }
 
-/**
- * Cancela assinatura Stripe
- */
 export async function cancelStripeSubscription(subscriptionId) {
-  const stripe = await getStripe();
-  const sub    = await stripe.subscriptions.cancel(subscriptionId);
-  return { cancelled: true, status: sub.status, id: sub.id };
+  const subscription = await getStripe().subscriptions.cancel(subscriptionId);
+  return { cancelled: true, status: subscription.status, id: subscription.id };
 }
 
-/**
- * Verifica e processa webhook Stripe
- */
-export async function processStripeWebhook(rawBody, signature) {
-  const stripe  = await getStripe();
-  const secret  = process.env.STRIPE_WEBHOOK_SECRET;
-
+export function processStripeWebhook(rawBody, signature) {
+  const secret = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
   if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET não configurado");
-
-  const event = stripe.webhooks.constructEvent(rawBody, signature, secret);
-  return event;
+  return getStripe().webhooks.constructEvent(rawBody, signature, secret);
 }

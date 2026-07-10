@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import bcrypt from "bcryptjs";
 
 const port = 41000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -26,6 +26,7 @@ async function waitUntilHealthy() {
 }
 
 test.before(async () => {
+  const adminBcryptHash = await bcrypt.hash(adminPassword, 4);
   server = spawn(process.execPath, ["src/server.js"], {
     cwd: process.cwd(),
     env: {
@@ -34,8 +35,7 @@ test.before(async () => {
       PORT: String(port),
       FRONTEND_URL: frontendOrigin,
       ADMIN_EMAIL: adminEmail,
-      ADMIN_PASSWORD_HASH: crypto.createHash("sha256").update(adminPassword).digest("hex"),
-      ADMIN_PASSWORD: "",
+      ADMIN_PASSWORD_BCRYPT_HASH: adminBcryptHash,
       JWT_SECRET: "integration-test-secret",
     },
     stdio: "ignore",
@@ -92,4 +92,25 @@ test("login exige a credencial configurada e nao aceita fallback", async () => {
   assert.equal(configured.status, 200);
   assert.equal(body.user.role, "admin");
   assert.ok(body.token);
+});
+
+test("rota publica de ativacao foi removida", async () => {
+  const response = await fetch(`${baseUrl}/api/activate`);
+  assert.equal(response.status, 404);
+});
+
+test("Mercado Pago aceita somente PIX e Stripe somente cartao ou boleto", async () => {
+  const mercadoPagoBoleto = await fetch(`${baseUrl}/api/payments/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: frontendOrigin },
+    body: JSON.stringify({ tier: "basic", method: "boleto", customerEmail: adminEmail }),
+  });
+  assert.equal(mercadoPagoBoleto.status, 400);
+
+  const stripePix = await fetch(`${baseUrl}/api/payments/checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: frontendOrigin },
+    body: JSON.stringify({ tier: "basic", method: "pix", customerEmail: adminEmail }),
+  });
+  assert.equal(stripePix.status, 400);
 });

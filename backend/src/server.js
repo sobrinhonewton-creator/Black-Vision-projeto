@@ -11,7 +11,6 @@ import trackingRoutes from "./routes/tracking.js";
 import contentRoutes  from "./routes/content.js";
 import paymentRoutes  from "./routes/payments.js";
 import webhookRoutes  from "./routes/webhooks.js";
-import activateRoute  from "./routes/activate.js";  // ← remover após 1º pagamento real
 
 const app  = express();
 const PORT = process.env.PORT || 3333;
@@ -46,7 +45,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get("/health", (_, res) => res.json({
   ok: true, ts: Date.now(),
-  gateway: process.env.PAYMENT_GATEWAY || "mercadopago",
+  gateway: "stripe+mercadopago_pix",
   env: process.env.NODE_ENV,
 }));
 
@@ -55,7 +54,6 @@ app.use("/api/tracking", trackingRoutes);
 app.use("/api/content",  contentRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
-app.use("/api/activate", activateRoute);  // ← remover após 1º pagamento real
 
 app.use((_, res) => res.status(404).json({ message: "Route not found" }));
 
@@ -71,6 +69,5 @@ app.listen(PORT, () => {
   console.log(`\n🚀 Black Vision API rodando na porta ${PORT}`);
   console.log(`   Frontend:  ${process.env.FRONTEND_URL}`);
   console.log(`   Backend:   ${process.env.BACKEND_URL}`);
-  console.log(`   Gateway:   ${process.env.PAYMENT_GATEWAY}`);
-  console.log(`   Ativar MP: ${process.env.BACKEND_URL}/api/activate\n`);
+  console.log("   Gateway:   Stripe (cartão/boleto) + Mercado Pago (PIX)\n");
 });

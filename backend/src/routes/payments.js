@@ -1,248 +1,178 @@
 /**
- * routes/payments.js
- * POST /api/payments/checkout
- * GET  /api/payments/status/:id
- * POST /api/payments/cancel
+ * Pagamentos híbridos:
+ * - Stripe Checkout: cartão e boleto
+ * - Mercado Pago: apenas PIX
  */
 
 import { Router } from "express";
 import { requireAdmin } from "../middleware/auth.js";
-import { createMPCheckout, createMPDirectPayment, getMPStatus } from "../services/mercadopago.js";
+import { createMPDirectPayment, getMPStatus } from "../services/mercadopago.js";
 import { createStripeCheckout, getStripeStatus, cancelStripeSubscription } from "../services/stripe.js";
 import { logTransaction, getTransactions } from "../services/transactionLog.js";
 
-const router  = Router();
-const GATEWAY = process.env.PAYMENT_GATEWAY || "mercadopago";
+const router = Router();
 
-/* ── Plan definitions (espelho do front) ── */
-const PLANS = {
-  basic:    { label: "Black Vision Basic",    amount: 49700,  currency: "BRL", type: "one_time" },
-  advanced: { label: "Black Vision Advanced", amount: 150000, currency: "BRL", type: "one_time" },
-  pro:      { label: "Black Vision Pro",      amount: null,   currency: "BRL", type: "subscription" },
+export const PLANS = {
+  basic: { label: "Black Vision Basic", amount: 49_700, currency: "BRL", type: "one_time" },
+  advanced: { label: "Black Vision Advanced", amount: 150_000, currency: "BRL", type: "one_time" },
+  pro: { label: "Black Vision Pro", amount: null, currency: "BRL", type: "custom" },
 };
 
-function buildCheckoutPayload(body) {
-  const { tier, customerEmail, customerName, customerPhone, gateway: reqGateway } = body || {};
-  const gw   = reqGateway || GATEWAY;
+function checkoutContext(body) {
+  const { tier, method, customerEmail, customerName, customerPhone } = body || {};
   const plan = PLANS[tier];
-
   if (!plan) return { error: `Plano inválido: ${tier}`, status: 400 };
-  if (!customerEmail) return { error: "customerEmail é obrigatório", status: 400 };
+  if (!plan.amount) return { error: "Este plano exige proposta personalizada", status: 422 };
+  if (!["card", "boleto"].includes(method)) {
+    return { error: "method deve ser card ou boleto para Stripe", status: 400 };
+  }
+  if (!String(customerEmail || "").trim()) return { error: "customerEmail é obrigatório", status: 400 };
 
-  const baseUrl    = process.env.FRONTEND_URL || "https://blackvision.com.br";
-  const successUrl = `${baseUrl}/checkout/success?plan=${tier}`;
-  const failureUrl = `${baseUrl}/checkout/failure?plan=${tier}`;
-  const pendingUrl = `${baseUrl}/checkout/success?plan=${tier}&status=pending`;
-
+  const baseUrl = process.env.FRONTEND_URL || "https://blackvision.com.br";
   return {
-    gw,
-    plan,
     tier,
-    customerEmail,
+    method,
+    plan,
+    customerEmail: String(customerEmail).trim().toLowerCase(),
     payload: {
       plan,
       tier,
-      customer: { email: customerEmail, name: customerName, phone: customerPhone },
-      successUrl,
-      failureUrl,
-      pendingUrl,
+      method,
+      customer: {
+        email: String(customerEmail).trim().toLowerCase(),
+        name: String(customerName || "").trim(),
+        phone: String(customerPhone || "").trim(),
+      },
+      successUrl: `${baseUrl}/checkout/success?plan=${encodeURIComponent(tier)}`,
+      failureUrl: `${baseUrl}/checkout/failure?plan=${encodeURIComponent(tier)}`,
     },
   };
 }
 
-async function runCheckout({ gw, plan, tier, customerEmail, payload }) {
-  let result;
-
-  if (gw === "stripe") {
-    result = await createStripeCheckout(payload);
-  } else {
-    result = await createMPCheckout(payload);
-  }
-
+async function startStripeCheckout(context) {
+  const result = await createStripeCheckout(context.payload);
   await logTransaction({
-    tier, gateway: gw, status: "pending",
-    amount: plan.amount, currency: plan.currency,
-    customerEmail,
-    sessionId: result.sessionId || result.preferenceId,
+    tier: context.tier,
+    gateway: "stripe",
+    method: context.method,
+    status: "pending",
+    amount: context.plan.amount,
+    currency: context.plan.currency,
+    customerEmail: context.customerEmail,
+    sessionId: result.sessionId,
   });
-
   return result;
 }
 
-function normalizeAddress(address) {
-  const raw = address || {};
-  return {
-    zip_code: String(raw.zip_code || raw.zip || raw.cep || "").replace(/\D/g, "").trim(),
-    street_name: String(raw.street_name || raw.street || raw.logradouro || "").trim(),
-    street_number: String(raw.street_number || raw.number || raw.numero || "").trim(),
-    neighborhood: String(raw.neighborhood || raw.district || raw.bairro || "").trim(),
-    city: String(raw.city || raw.locality || raw.cidade || "").trim(),
-    federal_unit: String(raw.federal_unit || raw.state || raw.uf || "").trim().toUpperCase(),
-  };
-}
-
-function getMissingAddressFields(address) {
-  const required = ["zip_code", "street_name", "street_number", "neighborhood", "city", "federal_unit"];
-  const missing = required.filter((key) => !String(address[key] || "").trim());
-  // Also validate CEP has exactly 8 digits
-  const cepValid = /^\d{8}$/.test(String(address.zip_code || "").replace(/\D/g, ""));
-  if (!cepValid) missing.push("zip_code (inválido)");
-  return missing;
-}
-
-/* POST /api/payments/create — PIX / Boleto nativo (sem redirect MP) */
 router.post("/create", async (req, res) => {
-  const {
-    tier,
-    customerEmail,
-    customerName,
-    customerPhone,
-    customerCpf,
-    method,
-    customerAddress,
-    address,
-    customer_address,
-  } = req.body || {};
-
+  const { tier, customerEmail, customerName, customerPhone, customerCpf, method } = req.body || {};
   const plan = PLANS[tier];
   if (!plan) return res.status(400).json({ message: `Plano inválido: ${tier}` });
+  if (!plan.amount) return res.status(422).json({ message: "Este plano exige proposta personalizada" });
   if (!customerEmail) return res.status(400).json({ message: "customerEmail é obrigatório" });
-  if (!["pix", "boleto"].includes(method)) {
-    return res.status(400).json({ message: "method deve ser pix ou boleto" });
+  if (method !== "pix") {
+    return res.status(400).json({ message: "Mercado Pago é utilizado somente para PIX" });
   }
-
-  const normalizedAddress = normalizeAddress(customerAddress || address || customer_address || {});
-
-  if (method === "boleto") {
-    const missing = getMissingAddressFields(normalizedAddress);
-    if (missing.length) {
-      console.warn("[Payment/Boleto] Address validation failed:", { customerAddress, address, customer_address, normalizedAddress, missing });
-      return res.status(400).json({
-        message: `Boleto registrado exige endereço completo: ${missing.join(", ")}`,
-        missing,
-      });
-    }
-  }
-
-  const customer = {
-    email: customerEmail,
-    name: customerName,
-    phone: customerPhone,
-    address: normalizedAddress,
-  };
 
   try {
-    console.log("[Payment/Create] Processing:", { method, customerEmail, addressNorm: normalizedAddress });
-    const result = await createMPDirectPayment({ plan, tier, customer, method, cpf: customerCpf });
-
+    const result = await createMPDirectPayment({
+      plan,
+      tier,
+      method: "pix",
+      cpf: customerCpf,
+      customer: {
+        email: String(customerEmail).trim().toLowerCase(),
+        name: String(customerName || "").trim(),
+        phone: String(customerPhone || "").trim(),
+      },
+    });
     await logTransaction({
-      tier, gateway: "mercadopago", status: "pending",
-      amount: plan.amount, currency: plan.currency,
-      customerEmail,
+      tier,
+      gateway: "mercadopago",
+      method: "pix",
+      status: "pending",
+      amount: plan.amount,
+      currency: plan.currency,
+      customerEmail: String(customerEmail).trim().toLowerCase(),
       sessionId: String(result.paymentId),
     });
-
-    res.json(result);
-  } catch (err) {
-    console.error("[Payment create] Error:", {
-      method,
-      error: err.message,
-      customer,
-    });
-
+    return res.json({ ...result, provider: "mercadopago" });
+  } catch (error) {
+    console.error("[PIX create]", error.message);
     await logTransaction({
-      tier, gateway: "mercadopago", status: "error",
-      customerEmail, error: err.message,
+      tier,
+      gateway: "mercadopago",
+      method: "pix",
+      status: "error",
+      customerEmail: String(customerEmail).trim().toLowerCase(),
+      error: error.message,
     });
-
-    res.status(500).json({ message: err.message });
+    return res.status(500).json({ message: error.message });
   }
 });
 
-/* POST /api/payments/checkout */
 router.post("/checkout", async (req, res) => {
-  const built = buildCheckoutPayload(req.body);
-  if (built.error) return res.status(built.status).json({ message: built.error });
-
-  const { gw, plan, tier, customerEmail, payload } = built;
-
+  const context = checkoutContext(req.body);
+  if (context.error) return res.status(context.status).json({ message: context.error });
   try {
-    const result = await runCheckout({ gw, plan, tier, customerEmail, payload });
-    res.json(result);
-  } catch (err) {
-    console.error("[Payment checkout]", err.message);
-
+    return res.json(await startStripeCheckout(context));
+  } catch (error) {
+    console.error("[Stripe checkout]", { type: error?.type, code: error?.code, message: error?.message });
     await logTransaction({
-      tier, gateway: gw, status: "error",
-      customerEmail, error: err.message,
+      tier: context.tier,
+      gateway: "stripe",
+      method: context.method,
+      status: "error",
+      customerEmail: context.customerEmail,
+      error: error.message,
     });
-
-    res.status(500).json({ message: "Erro ao criar checkout: " + err.message });
+    const status = error?.statusCode && error.statusCode < 500 ? 422 : 500;
+    return res.status(status).json({ message: "Não foi possível abrir o checkout da Stripe" });
   }
 });
 
-/* POST /api/payments/checkout/redirect — redirect HTTP 303 direto ao MP (sem JS no front) */
 router.post("/checkout/redirect", async (req, res) => {
-  const built = buildCheckoutPayload(req.body);
-  if (built.error) {
-    const base = process.env.FRONTEND_URL || "https://blackvision.com.br";
-    return res.redirect(303, `${base}/checkout/failure?plan=${req.body?.tier || "basic"}&error=${encodeURIComponent(built.error)}`);
+  const context = checkoutContext(req.body);
+  const baseUrl = process.env.FRONTEND_URL || "https://blackvision.com.br";
+  if (context.error) {
+    return res.redirect(303, `${baseUrl}/checkout/failure?plan=${encodeURIComponent(req.body?.tier || "basic")}`);
   }
-
-  const { gw, plan, tier, customerEmail, payload } = built;
-
   try {
-    const result = await runCheckout({ gw, plan, tier, customerEmail, payload });
-    const mpUrl    = result.checkoutUrl || result.initPoint || result.sessionId;
-    if (!mpUrl) throw new Error("URL de checkout não retornada pelo gateway");
-    return res.redirect(303, mpUrl);
-  } catch (err) {
-    console.error("[Payment checkout/redirect]", err.message);
-
-    await logTransaction({
-      tier, gateway: gw, status: "error",
-      customerEmail, error: err.message,
-    });
-
-    const base = process.env.FRONTEND_URL || "https://blackvision.com.br";
-    return res.redirect(303, `${base}/checkout/failure?plan=${tier}&error=${encodeURIComponent(err.message)}`);
+    const result = await startStripeCheckout(context);
+    return res.redirect(303, result.checkoutUrl);
+  } catch (error) {
+    console.error("[Stripe redirect]", error.message);
+    return res.redirect(303, `${baseUrl}/checkout/failure?plan=${encodeURIComponent(context.tier)}`);
   }
 });
 
-/* GET /api/payments/status/:id */
 router.get("/status/:id", async (req, res) => {
-  const { id } = req.params;
-
+  const id = String(req.params.id || "");
   try {
-    let result;
-    if (GATEWAY === "stripe") {
-      result = await getStripeStatus(id);
-    } else {
-      result = await getMPStatus(id);
-    }
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ status: "unknown", message: err.message });
+    const result = id.startsWith("cs_") || id.startsWith("pi_")
+      ? await getStripeStatus(id)
+      : /^\d+$/.test(id)
+        ? await getMPStatus(id)
+        : null;
+    if (!result) return res.status(400).json({ status: "unknown", message: "Identificador inválido" });
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ status: "unknown", message: error.message });
   }
 });
 
-/* POST /api/payments/cancel */
 router.post("/cancel", requireAdmin, async (req, res) => {
   const { subscriptionId } = req.body || {};
   if (!subscriptionId) return res.status(400).json({ message: "subscriptionId obrigatório" });
-
   try {
-    const result = await cancelStripeSubscription(subscriptionId);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    return res.json(await cancelStripeSubscription(subscriptionId));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 });
 
-/* GET /api/payments/transactions — admin */
 router.get("/transactions", requireAdmin, async (req, res) => {
-  const txs = await getTransactions();
-  res.json(txs);
+  return res.json(await getTransactions(Number(req.query.limit) || 100));
 });
 
 export default router;

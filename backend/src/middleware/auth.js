@@ -4,7 +4,10 @@
 
 import crypto from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_in_prod";
+const JWT_SECRET = String(process.env.JWT_SECRET || "").trim() || "dev_secret_change_in_prod";
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "dev_secret_change_in_prod") {
+  throw new Error("JWT_SECRET é obrigatório em produção");
+}
 
 /* ── Tiny JWT (sem dependência extra) ── */
 function base64url(str) {
@@ -20,9 +23,15 @@ export function signToken(payload, expiresInSec = 7 * 24 * 3600) {
 
 export function verifyToken(token) {
   try {
-    const [header, body, sig] = token.split(".");
+    const parts = token.split(".");
+    if (parts.length !== 3) throw new Error("Invalid token format");
+    const [header, body, sig] = parts;
     const expected = crypto.createHmac("sha256", JWT_SECRET).update(`${header}.${body}`).digest("base64url");
-    if (sig !== expected) throw new Error("Invalid signature");
+    const actualBuffer = Buffer.from(sig);
+    const expectedBuffer = Buffer.from(expected);
+    if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) {
+      throw new Error("Invalid signature");
+    }
     const payload = JSON.parse(Buffer.from(body, "base64url").toString());
     if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error("Token expired");
     return payload;

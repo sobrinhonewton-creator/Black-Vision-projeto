@@ -3,13 +3,14 @@
  * Com try/catch para não travar o servidor se credenciais estiverem erradas
  */
 
-import admin from "firebase-admin";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore as createFirestore } from "firebase-admin/firestore";
 
 let _db         = null;
 let _initFailed = false;
 
 export function initFirebase() {
-  if (admin.apps.length > 0) return true;
+  if (getApps().length > 0) return true;
   if (_initFailed) return false;
 
   try {
@@ -26,8 +27,8 @@ export function initFirebase() {
       throw new Error("Variáveis FIREBASE_* ausentes no .env");
     }
 
-    admin.initializeApp({
-      credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+    initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
     });
 
     console.log("✅ Firebase Admin initialized");
@@ -45,7 +46,7 @@ export function getFirestore() {
   if (!_db) {
     const ok = initFirebase();
     if (!ok) throw new Error("Firebase indisponível");
-    _db = admin.firestore();
+    _db = createFirestore();
   }
   return _db;
 }

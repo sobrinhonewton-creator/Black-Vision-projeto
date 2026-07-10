@@ -1,11 +1,9 @@
 /**
  * payment.js — Black Vision Payment Service Layer
- * Gateway-agnóstico: stripe | mercadopago via VITE_PAYMENT_GATEWAY
+ * Stripe para cartão/boleto e Mercado Pago exclusivamente para PIX.
  */
 
 import api from "./api.js";
-
-export const GATEWAY = import.meta.env.VITE_PAYMENT_GATEWAY || "mercadopago";
 
 /** @typedef {'basic'|'advanced'|'pro'} PlanTier */
 
@@ -45,10 +43,7 @@ export const PLANS = {
  */
 export async function createCheckout(payload) {
   try {
-    const { data } = await api.post("/api/payments/checkout", {
-      ...payload,
-      gateway: GATEWAY,
-    });
+    const { data } = await api.post("/api/payments/checkout", payload);
     return { success: true, ...data };
   } catch (err) {
     const message = err.response?.data?.message || err.message;
@@ -58,8 +53,8 @@ export async function createCheckout(payload) {
 }
 
 /**
- * Cria pagamento PIX ou Boleto direto (QR/código no site, sem redirect MP)
- * @param {{ tier: PlanTier, method: 'pix'|'boleto', customerEmail: string, customerName?: string, customerPhone?: string, customerCpf: string }} payload
+ * Cria PIX direto no Mercado Pago (QR/código no site)
+ * @param {{ tier: PlanTier, method: 'pix', customerEmail: string, customerName?: string, customerPhone?: string, customerCpf: string }} payload
  */
 export async function createDirectPayment(payload) {
   try {

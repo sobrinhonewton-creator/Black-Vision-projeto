@@ -1,7 +1,7 @@
 /**
  * CheckoutPage.jsx — Checkout nativo Black Vision
- * PIX/Boleto: Payments API (QR no site, sem redirect MP — evita CSP do checkout MP)
- * Cartão: Checkout Pro em nova aba
+ * PIX: Mercado Pago (QR no site)
+ * Cartão e boleto: Stripe Checkout hospedado
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -14,9 +14,9 @@ import {
 } from "../../services/payment.js";
 
 const METHODS = [
-  { id: "pix",    label: "PIX",    desc: "Aprovação em segundos" },
-  { id: "boleto", label: "Boleto", desc: "Vence em 3 dias úteis" },
-  { id: "card",   label: "Cartão", desc: "Crédito ou débito" },
+  { id: "pix",    label: "PIX",    desc: "Mercado Pago · instantâneo" },
+  { id: "boleto", label: "Boleto", desc: "Stripe · vence em 3 dias" },
+  { id: "card",   label: "Cartão", desc: "Stripe · crédito" },
 ];
 
 function qrImageSrc(qrCodeBase64, qrCode) {
@@ -32,13 +32,13 @@ export default function CheckoutPage() {
   const plan       = PLANS[planId] || PLANS.advanced;
   const pollRef    = useRef(null);
 
-  const [form, setForm]         = useState({ name: "", email: "", phone: "", cpf: "", zip: "", street: "", number: "", neighborhood: "", city: "", state: "" });
+  const [form, setForm]         = useState({ name: "", email: "", phone: "", cpf: "" });
   const [method, setMethod]     = useState("pix");
   const [errors, setErrors]     = useState({});
   const [loading, setLoading]   = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [payment, setPayment]   = useState(null);
-  const [cardUrl, setCardUrl]   = useState(null);
+  const [checkoutUrl, setCheckoutUrl] = useState(null);
   const [copied, setCopied]     = useState(false);
 
   useEffect(() => {
@@ -81,18 +81,9 @@ export default function CheckoutPage() {
     if (!form.name.trim()) e.name = "Nome é obrigatório";
     if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = "E-mail inválido";
     if (!form.phone.replace(/\D/g, "").match(/^\d{10,11}$/)) e.phone = "Telefone inválido";
-    if (method !== "card") {
+    if (method === "pix") {
       const cpf = String(form.cpf || "").replace(/\D/g, "");
       if (!/^\d{11}$/.test(cpf)) e.cpf = "CPF inválido (11 dígitos)";
-    }
-
-    if (method === "boleto") {
-      if (!String(form.zip || "").replace(/\D/g, "").match(/^\d{8}$/)) e.zip = "CEP inválido (8 dígitos)";
-      if (!String(form.street || "").trim()) e.street = "Rua é obrigatória";
-      if (!String(form.number || "").trim()) e.number = "Número é obrigatório";
-      if (!String(form.neighborhood || "").trim()) e.neighborhood = "Bairro é obrigatório";
-      if (!String(form.city || "").trim()) e.city = "Cidade é obrigatória";
-      if (!String(form.state || "").trim() || !/^[A-Za-z]{2}$/.test(form.state)) e.state = "UF inválida (2 letras)";
     }
 
     setErrors(e);
@@ -105,11 +96,12 @@ export default function CheckoutPage() {
 
     setLoading(true);
     setErrorMsg("");
-    setCardUrl(null);
+    setCheckoutUrl(null);
 
-    if (method === "card") {
+    if (method === "card" || method === "boleto") {
       const result = await createCheckout({
         tier:          planId,
+        method,
         customerName:  form.name,
         customerEmail: form.email,
         customerPhone: form.phone,
@@ -122,14 +114,14 @@ export default function CheckoutPage() {
         return;
       }
 
-      const mpUrl = result.checkoutUrl || result.initPoint;
-      if (!mpUrl) {
+      const stripeUrl = result.checkoutUrl;
+      if (!stripeUrl) {
         setErrorMsg("URL de checkout nao retornada");
         return;
       }
 
-      const opened = window.open(mpUrl, "_blank", "noopener,noreferrer");
-      if (!opened) setCardUrl(mpUrl);
+      const opened = window.open(stripeUrl, "_blank", "noopener,noreferrer");
+      if (!opened) setCheckoutUrl(stripeUrl);
       return;
     }
 
@@ -140,14 +132,6 @@ export default function CheckoutPage() {
       customerEmail: form.email,
       customerPhone: form.phone,
       customerCpf:   form.cpf,
-      customerAddress: {
-        zip_code: form.zip,
-        street_name: form.street,
-        street_number: form.number,
-        neighborhood: form.neighborhood,
-        city: form.city,
-        federal_unit: form.state,
-      },
     };
 
     const result = await createDirectPayment(payload);
@@ -210,7 +194,7 @@ export default function CheckoutPage() {
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
-                Mercado Pago
+                Stripe para cartão e boleto · Mercado Pago para PIX
               </div>
             </div>
           </div>
@@ -219,38 +203,25 @@ export default function CheckoutPage() {
             {payment ? (
               <div className="co-payment-result">
                 <h2 className="co-form-title">
-                  {payment.method === "pix" ? "Pague com PIX" : "Boleto gerado"}
+                  Pague com PIX
                 </h2>
                 <p className="co-form-sub">
-                  {payment.method === "pix"
-                    ? "Escaneie o QR Code ou copie o codigo abaixo"
-                    : "Pague o boleto pelo app do banco ou internet banking"}
+                  Escaneie o QR Code ou copie o código abaixo
                 </p>
 
-                {payment.method === "pix" && imgSrc && (
+                {imgSrc && (
                   <div className="co-qr-wrap">
                     <img src={imgSrc} alt="QR Code PIX" className="co-qr-img" />
                   </div>
                 )}
 
-                {payment.method === "pix" && payment.qrCode && (
+                {payment.qrCode && (
                   <div className="co-pix-code">
                     <code>{payment.qrCode}</code>
                     <button type="button" className="co-copy-btn" onClick={copyPixCode}>
                       {copied ? "Copiado!" : "Copiar codigo"}
                     </button>
                   </div>
-                )}
-
-                {payment.method === "boleto" && payment.ticketUrl && (
-                  <a
-                    href={payment.ticketUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="co-submit co-submit-link"
-                  >
-                    Abrir boleto para pagamento
-                  </a>
                 )}
 
                 <div className="co-waiting">
@@ -313,82 +284,16 @@ export default function CheckoutPage() {
                     />
                     {errors.phone && <span className="co-field-error">{errors.phone}</span>}
                   </div>
-                  {method !== "card" && (
-                    <>
-                      <div className="co-field">
-                        <label htmlFor="co-cpf">CPF</label>
-                        <input
-                          id="co-cpf" type="text" placeholder="000.000.000-00"
-                          value={form.cpf} onChange={set("cpf")}
-                          className={errors.cpf ? "error" : ""}
-                        />
-                        {errors.cpf && <span className="co-field-error">{errors.cpf}</span>}
-                      </div>
-
-                      {method === "boleto" && (
-                        <>
-                          <div className="co-field">
-                            <label htmlFor="co-zip">CEP</label>
-                            <input
-                              id="co-zip" type="text" placeholder="00000-000"
-                              value={form.zip} onChange={set("zip")}
-                              className={errors.zip ? "error" : ""}
-                            />
-                            {errors.zip && <span className="co-field-error">{errors.zip}</span>}
-                          </div>
-
-                          <div className="co-field">
-                            <label htmlFor="co-street">Rua</label>
-                            <input
-                              id="co-street" type="text" placeholder="Rua Exemplo"
-                              value={form.street} onChange={set("street")}
-                              className={errors.street ? "error" : ""}
-                            />
-                            {errors.street && <span className="co-field-error">{errors.street}</span>}
-                          </div>
-
-                          <div className="co-field">
-                            <label htmlFor="co-number">Número</label>
-                            <input
-                              id="co-number" type="text" placeholder="123"
-                              value={form.number} onChange={set("number")}
-                              className={errors.number ? "error" : ""}
-                            />
-                            {errors.number && <span className="co-field-error">{errors.number}</span>}
-                          </div>
-
-                          <div className="co-field">
-                            <label htmlFor="co-neighborhood">Bairro</label>
-                            <input
-                              id="co-neighborhood" type="text" placeholder="Centro"
-                              value={form.neighborhood} onChange={set("neighborhood")}
-                              className={errors.neighborhood ? "error" : ""}
-                            />
-                            {errors.neighborhood && <span className="co-field-error">{errors.neighborhood}</span>}
-                          </div>
-
-                          <div className="co-field">
-                            <label htmlFor="co-city">Cidade</label>
-                            <input
-                              id="co-city" type="text" placeholder="Salvador"
-                              value={form.city} onChange={set("city")}
-                              className={errors.city ? "error" : ""}
-                            />
-                            {errors.city && <span className="co-field-error">{errors.city}</span>}
-                          </div>
-
-                          <div className="co-field">
-                            <label htmlFor="co-state">UF</label>
-                            <input
-                              id="co-state" type="text" placeholder="BA"
-                              value={form.state} onChange={set("state")}
-                              className={errors.state ? "error" : ""}
-                            />
-                            {errors.state && <span className="co-field-error">{errors.state}</span>}
-                          </div>
-                        </>
-                      )}
-                    </>
+                  {method === "pix" && (
+                    <div className="co-field">
+                      <label htmlFor="co-cpf">CPF</label>
+                      <input
+                        id="co-cpf" type="text" placeholder="000.000.000-00"
+                        value={form.cpf} onChange={set("cpf")}
+                        className={errors.cpf ? "error" : ""}
+                      />
+                      {errors.cpf && <span className="co-field-error">{errors.cpf}</span>}
+                    </div>
                   )}
 
                   {errorMsg && (
@@ -397,30 +302,32 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {cardUrl && (
+                  {checkoutUrl && (
                     <a
-                      href={cardUrl}
+                      href={checkoutUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="co-submit co-submit-link"
                     >
-                      Abrir pagamento com cartao
+                      Abrir checkout seguro da Stripe
                     </a>
                   )}
 
                   <button type="submit" className="co-submit" disabled={loading}>
                     {loading
                       ? <span className="co-spinner" />
-                      : method === "card"
-                        ? "Pagar com cartao (nova aba)"
-                        : method === "pix"
-                          ? "Gerar QR Code PIX"
-                          : "Gerar Boleto"
+                      : method === "pix"
+                        ? "Gerar QR Code PIX"
+                        : method === "card"
+                          ? "Pagar com cartão na Stripe"
+                          : "Gerar boleto na Stripe"
                     }
                   </button>
 
                   <p className="co-terms">
-                    Pagamento processado pelo Mercado Pago.
+                    {method === "pix"
+                      ? "PIX processado pelo Mercado Pago."
+                      : "Pagamento processado no ambiente seguro da Stripe."}
                   </p>
                 </form>
               </>

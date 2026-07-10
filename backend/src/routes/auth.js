@@ -5,23 +5,16 @@
  */
 
 import { Router } from "express";
-import crypto     from "crypto";
+import bcrypt from "bcryptjs";
 import { signToken, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL?.trim() || "getblackvision.br@gmail.com");
-// Em produção: hash bcrypt. Aqui usamos sha256 simples para zero deps.
-// Gere: node -e "console.log(require('crypto').createHash('sha256').update('SuaSenha').digest('hex'))"
-const ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH?.trim() || "";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD?.trim() || "";
-
-function hashPassword(plain) {
-  return crypto.createHash("sha256").update(plain).digest("hex");
-}
+const ADMIN_BCRYPT_HASH = process.env.ADMIN_PASSWORD_BCRYPT_HASH?.trim() || "";
 
 /* POST /api/auth/login */
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body || {};
 
   if (!email || !password) {
@@ -29,9 +22,9 @@ router.post("/login", (req, res) => {
   }
 
   const emailMatch = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
-  const passHash = hashPassword(password);
-  const passMatch = (ADMIN_HASH && passHash === ADMIN_HASH) ||
-                    (ADMIN_PASSWORD && password === ADMIN_PASSWORD);
+  const passMatch = ADMIN_BCRYPT_HASH
+    ? await bcrypt.compare(String(password), ADMIN_BCRYPT_HASH)
+    : false;
 
   if (!emailMatch || !passMatch) {
     return res.status(401).json({ message: "Credenciais inválidas" });
