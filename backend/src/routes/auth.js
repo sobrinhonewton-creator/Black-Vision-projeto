@@ -14,7 +14,7 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL?.trim() || "getblackvision.br@gmail
 // Em produção: hash bcrypt. Aqui usamos sha256 simples para zero deps.
 // Gere: node -e "console.log(require('crypto').createHash('sha256').update('SuaSenha').digest('hex'))"
 const ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH?.trim() || "";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD?.trim() || "Rihanna26";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD?.trim() || "";
 
 function hashPassword(plain) {
   return crypto.createHash("sha256").update(plain).digest("hex");
@@ -31,7 +31,7 @@ router.post("/login", (req, res) => {
   const emailMatch = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const passHash = hashPassword(password);
   const passMatch = (ADMIN_HASH && passHash === ADMIN_HASH) ||
-                    password === ADMIN_PASSWORD;
+                    (ADMIN_PASSWORD && password === ADMIN_PASSWORD);
 
   if (!emailMatch || !passMatch) {
     return res.status(401).json({ message: "Credenciais inválidas" });

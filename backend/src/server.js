@@ -25,15 +25,20 @@ const allowed = new Set([
   "https://www.blackvision.com.br",
 ].filter(Boolean));
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, cb) => {
     if (!origin || allowed.has(origin)) return cb(null, true);
-    cb(new Error(`CORS bloqueado: ${origin}`));
+    const error = new Error("Origem não autorizada");
+    error.code = "CORS_ORIGIN_DENIED";
+    error.status = 403;
+    cb(error);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
-}));
+};
+
+app.use(cors(corsOptions));
 
 app.use("/api/webhooks", express.raw({ type: "application/json" }));
 app.use(express.json());
@@ -56,6 +61,9 @@ app.use((_, res) => res.status(404).json({ message: "Route not found" }));
 
 app.use((err, req, res, _next) => {
   console.error("[Error]", err.message);
+  if (err.code === "CORS_ORIGIN_DENIED") {
+    return res.status(403).json({ message: "Origem não autorizada" });
+  }
   res.status(err.status || 500).json({ message: err.message || "Internal server error" });
 });
 

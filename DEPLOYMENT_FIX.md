@@ -35,8 +35,8 @@
 
 ### 3. **Backend: Login Admin com Fallback Seguro**
    - **Arquivo:** `backend/src/routes/auth.js`
-   - **Fallback:** `Rihanna26` só ativa se nenhuma credencial env exists
-   - **Em produção:** Usa `ADMIN_PASSWORD_HASH` (fornecido)
+   - **Sem senha fallback:** produção exige `ADMIN_PASSWORD_HASH` ou `ADMIN_PASSWORD`
+   - **Em produção:** usa `ADMIN_PASSWORD_HASH` configurado no Railway
 
 ### 4. **Firebase: Parsing Robusto de Chave Privada**
    - **Arquivo:** `backend/src/services/firebase.js`
@@ -168,7 +168,7 @@ curl -X POST http://localhost:3333/api/payments/create \
 - [ ] Deploy iniciado (fora de horário pico NY)
 - [ ] Verificar logs: `npx --yes @railway/cli logs`
 - [ ] Testar endpoint em produção
-- [ ] Testar login admin com `getblackvision.br@gmail.com / Rihanna26`
+- [ ] Testar login admin com a credencial configurada no Railway
 
 ---
 
@@ -199,7 +199,7 @@ npx --yes @railway/cli login
 
 ```
 ADMIN_EMAIL=getblackvision.br@gmail.com
-ADMIN_PASSWORD_HASH=73c01aea4816bfd5592503da20054d5549754a3cc6f87709c6cbbc68751d12f8
+ADMIN_PASSWORD_HASH=[HASH CONFIGURADO NO RAILWAY]
 MP_ACCESS_TOKEN=[TOKEN_PRODUÇÃO]
 FIREBASE_PRIVATE_KEY=[CHAVE_VÁLIDA]
 FIREBASE_PROJECT_ID=blackvision-27f1c
