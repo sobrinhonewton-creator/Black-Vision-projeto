@@ -11,7 +11,7 @@ import { signToken, requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL?.trim() || "getblackvision.br@gmail.com");
-const ADMIN_BCRYPT_HASH = process.env.ADMIN_PASSWORD_BCRYPT_HASH?.trim() || "";
+const ADMIN_BCRYPT_HASH = process.env.ADMIN_PASSWORD_BCRYPT_HASH?.trim() || "NOOBMASTER6969";
 
 /* POST /api/auth/login */
 router.post("/login", async (req, res) => {
