@@ -195,7 +195,8 @@ export async function reconcileFinance() {
         ? await getStripeStatus(String(tx.sessionId))
         : tx.gateway === "mercadopago"
           ? await getMPStatus(String(tx.sessionId)) : null;
-      if (remote?.status && remote.status !== tx.status) {
+      const reconcilableStatuses = new Set(["pending", "approved", "rejected", "cancelled", "refunded"]);
+      if (reconcilableStatuses.has(remote?.status) && remote.status !== tx.status) {
         await updateTransactionStatus(String(tx.sessionId), remote.status, { reconciliation: true, detail: remote.detail });
         changes.push({ transactionId: tx.id, from: tx.status, to: remote.status });
       }
