@@ -8,6 +8,7 @@ import { trackPageView } from "./services/tracking";
 
 import './styles/blackvision.css'
 import './styles/pricing.css'
+import './styles/rebrand.css'
 
 import Header       from './components/Header.jsx'
 import Footer       from './components/Footer.jsx'

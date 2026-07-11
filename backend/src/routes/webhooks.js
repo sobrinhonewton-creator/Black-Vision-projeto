@@ -33,12 +33,22 @@ router.post("/stripe", async (req, res) => {
       await updateTransactionStatus(
         session.id,
         session.payment_status === "paid" ? "approved" : "pending",
-        { eventId: event.id, paymentIntent: session.payment_intent, paymentStatus: session.payment_status }
+        {
+          eventId: event.id,
+          paymentIntent: session.payment_intent,
+          paymentStatus: session.payment_status,
+          customerTaxId: session.customer_details?.tax_ids?.[0]?.value,
+          customerName: session.customer_details?.name,
+          customerPhone: session.customer_details?.phone,
+        }
       );
     } else if (event.type === "checkout.session.async_payment_succeeded") {
       await updateTransactionStatus(session.id, "approved", {
         eventId: event.id,
         paymentIntent: session.payment_intent,
+        customerTaxId: session.customer_details?.tax_ids?.[0]?.value,
+        customerName: session.customer_details?.name,
+        customerPhone: session.customer_details?.phone,
       });
     } else if (event.type === "checkout.session.async_payment_failed") {
       await updateTransactionStatus(session.id, "rejected", { eventId: event.id });

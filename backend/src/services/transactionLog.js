@@ -20,6 +20,8 @@ const memoryLog = []; // fallback desenvolvimento
  */
 export async function logTransaction(tx) {
   const entry = {
+    accountingEntity: "blackvision",
+    source: "blackvision_checkout",
     ...tx,
     id:        `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     createdAt: new Date().toISOString(),
@@ -38,6 +40,13 @@ export async function logTransaction(tx) {
     if (process.env.NODE_ENV === "development") {
       console.warn("[TransactionLog] Firestore write failed, using memory:", err.message);
     }
+  }
+
+  try {
+    const { onTransactionCreated } = await import("./financeCenter.js");
+    await onTransactionCreated(entry);
+  } catch (err) {
+    console.warn("[FinanceCenter] CRM sync skipped:", err.message);
   }
 
   return entry;
@@ -72,19 +81,31 @@ export async function updateTransactionStatus(sessionId, status, meta = {}) {
       .limit(1)
       .get();
 
+    let updatedTransaction = null;
     if (!snap.empty) {
-      await snap.docs[0].ref.update({
+      const current = snap.docs[0].data();
+      updatedTransaction = {
+        ...current,
         status,
         updatedAt: new Date().toISOString(),
         webhookMeta: meta,
-      });
+        ...(meta.customerTaxId ? { customerCpf: String(meta.customerTaxId).replace(/\D/g, "") } : {}),
+        ...(meta.customerName ? { customerName: meta.customerName } : {}),
+        ...(meta.customerPhone ? { customerPhone: meta.customerPhone } : {}),
+      };
+      await snap.docs[0].ref.update(updatedTransaction);
     }
 
     // Atualiza memória também
     const idx = memoryLog.findIndex(t => t.sessionId === sessionId);
     if (idx !== -1) memoryLog[idx] = { ...memoryLog[idx], status };
 
-    return { updated: true };
+    if (updatedTransaction) {
+      const { onTransactionStatusChanged } = await import("./financeCenter.js");
+      await onTransactionStatusChanged(updatedTransaction);
+    }
+
+    return { updated: true, transaction: updatedTransaction };
   } catch (err) {
     console.error("[TransactionLog] updateStatus error:", err.message);
     return { updated: false, error: err.message };

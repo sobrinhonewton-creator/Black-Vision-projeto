@@ -99,6 +99,11 @@ test("rota publica de ativacao foi removida", async () => {
   assert.equal(response.status, 404);
 });
 
+test("centro financeiro exige autenticação administrativa", async () => {
+  const response = await fetch(`${baseUrl}/api/finance`, { headers: { Origin: frontendOrigin } });
+  assert.equal(response.status, 401);
+});
+
 test("Mercado Pago aceita somente PIX e Stripe somente cartao ou boleto", async () => {
   const mercadoPagoBoleto = await fetch(`${baseUrl}/api/payments/create`, {
     method: "POST",

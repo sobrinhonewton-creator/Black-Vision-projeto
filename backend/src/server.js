@@ -11,6 +11,8 @@ import trackingRoutes from "./routes/tracking.js";
 import contentRoutes  from "./routes/content.js";
 import paymentRoutes  from "./routes/payments.js";
 import webhookRoutes  from "./routes/webhooks.js";
+import financeRoutes  from "./routes/finance.js";
+import { scanOperationalAlerts } from "./services/financeCenter.js";
 
 const app  = express();
 const PORT = process.env.PORT || 3333;
@@ -54,6 +56,7 @@ app.use("/api/tracking", trackingRoutes);
 app.use("/api/content",  contentRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/api/finance", financeRoutes);
 
 app.use((_, res) => res.status(404).json({ message: "Route not found" }));
 
@@ -71,3 +74,8 @@ app.listen(PORT, () => {
   console.log(`   Backend:   ${process.env.BACKEND_URL}`);
   console.log("   Gateway:   Stripe (cartão/boleto) + Mercado Pago (PIX)\n");
 });
+
+const alertTimer = setInterval(() => {
+  scanOperationalAlerts().catch((error) => console.warn("[Finance alerts]", error.message));
+}, 60 * 60 * 1000);
+alertTimer.unref();

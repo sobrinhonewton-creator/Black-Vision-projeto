@@ -11,19 +11,17 @@ import api from "./api.js";
 export const PLANS = {
   basic: {
     label:       "Basic",
-    priceLabel:  "R$ 497 – R$ 997",
+    priceLabel:  "R$ 497",
     description: "Landing page profissional para começar rápido",
     amountMin:   49700,
-    amountMax:   99700,
     currency:    "BRL",
     type:        "one_time",
   },
   advanced: {
     label:       "Advanced",
-    priceLabel:  "R$ 1.500 – R$ 3.000",
+    priceLabel:  "R$ 1.500",
     description: "Site completo com automação e painel administrativo",
     amountMin:   150000,
-    amountMax:   300000,
     currency:    "BRL",
     type:        "one_time",
   },

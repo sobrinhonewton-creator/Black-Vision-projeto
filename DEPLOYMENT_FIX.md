@@ -69,6 +69,38 @@ MP_WEBHOOK_SECRET
 
 Nunca copie valores reais para este arquivo.
 
+## Centro financeiro BlackVision
+
+O módulo `/api/finance` é administrativo e mantém dados próprios nas coleções:
+
+- `finance_customers`
+- `finance_invoices`
+- `finance_alerts`
+- `finance_reconciliation_runs`
+
+As transações usam `accountingEntity=blackvision`, e as sessões Stripe usam metadados
+`product=Black Vision`. Isso mantém o razão operacional separado do StudiosBook mesmo
+quando a conta Stripe é compartilhada.
+
+### Emissão de NFS-e
+
+A integração Focus NFe permanece bloqueada até todos os dados legais serem configurados:
+
+```text
+FOCUS_NFE_TOKEN
+FOCUS_NFE_ENV=homologation|production
+BLACKVISION_CNPJ
+BLACKVISION_MUNICIPAL_REGISTRATION
+BLACKVISION_CITY_CODE
+BLACKVISION_SIMPLE_NATIONAL=true|false
+FISCAL_SERVICE_LIST_CODE
+FISCAL_MUNICIPAL_TAX_CODE
+FISCAL_ISS_RATE
+```
+
+Sempre validar primeiro em homologação com o contador. Não ativar produção com códigos
+de serviço, alíquota ou inscrição municipal presumidos.
+
 ## Deploy correto
 
 O serviço Railway possui `Root Directory=/backend`. Envie o repositório a partir da raiz:

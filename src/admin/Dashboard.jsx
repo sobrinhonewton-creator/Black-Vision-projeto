@@ -12,6 +12,7 @@ import { fetchTransactions, cancelSubscription, healthCheck } from "../services/
 import { useToast } from "../components/ui/Toast.jsx";
 import Spinner from "../components/ui/Spinner.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
+import FinanceCenter from "./FinanceCenter.jsx";
 
 /* ── Card Modal (serviços) ── */
 function CardModal({ card, onClose, onSave }) {
@@ -119,7 +120,7 @@ function PlanModal({ plan, onClose, onSave }) {
           <div className="db-row2">
             <div className="db-field">
               <label>Preço *</label>
-              <input value={form.price} onChange={e => set("price", e.target.value)} placeholder="R$ 1.500 – R$ 3.000" />
+              <input value={form.price} onChange={e => set("price", e.target.value)} placeholder="R$ 1.500" />
             </div>
             <div className="db-field">
               <label>Sub-preço</label>
@@ -368,6 +369,7 @@ export default function Dashboard() {
     { id: "links",        label: "Links & WhatsApp", icon: LinkIcon },
     { id: "sections",     label: "Seções Ativas",    icon: ListIcon },
     { id: "transactions", label: "Transações",       icon: CreditCardIcon },
+    { id: "finance",      label: "Centro Financeiro", icon: DollarIcon },
   ];
 
   return (
@@ -746,6 +748,8 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+
+            {page === "finance" && <FinanceCenter />}
 
           </div>
         </div>

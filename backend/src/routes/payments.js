@@ -61,6 +61,8 @@ async function startStripeCheckout(context) {
     amount: context.plan.amount,
     currency: context.plan.currency,
     customerEmail: context.customerEmail,
+    customerName: context.payload.customer.name,
+    customerPhone: context.payload.customer.phone,
     sessionId: result.sessionId,
   });
   return result;
@@ -96,6 +98,9 @@ router.post("/create", async (req, res) => {
       amount: plan.amount,
       currency: plan.currency,
       customerEmail: String(customerEmail).trim().toLowerCase(),
+      customerName: String(customerName || "").trim(),
+      customerPhone: String(customerPhone || "").trim(),
+      customerCpf: String(customerCpf || "").replace(/\D/g, ""),
       sessionId: String(result.paymentId),
     });
     return res.json({ ...result, provider: "mercadopago" });
