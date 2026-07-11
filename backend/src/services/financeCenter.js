@@ -14,6 +14,7 @@ const now = () => new Date().toISOString();
 const hashId = (value) => createHash("sha256").update(String(value)).digest("hex").slice(0, 32);
 const cleanEmail = (value) => String(value || "").trim().toLowerCase();
 const digits = (value) => String(value || "").replace(/\D/g, "");
+const isOperationalTest = (value) => /^(payments-smoke|finance-e2e)@blackvision\.com\.br$/i.test(cleanEmail(value));
 
 async function readCollection(name, limit = 250) {
   try {
@@ -30,7 +31,7 @@ async function readCollection(name, limit = 250) {
 async function readTransactions(limit = 500) {
   try {
     const snap = await getFirestore().collection("transactions").orderBy("createdAt", "desc").limit(limit).get();
-    return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((tx) => !isOperationalTest(tx.customerEmail));
   } catch {
     return [];
   }
@@ -70,7 +71,7 @@ async function rebuildCustomerTotals(email) {
 
 export async function onTransactionCreated(tx) {
   const email = cleanEmail(tx.customerEmail);
-  if (!email) return;
+  if (!email || isOperationalTest(email)) return;
   const id = `customer_${hashId(email)}`;
   let existing = memory.customers.get(id) || {};
   try {
@@ -119,6 +120,7 @@ async function ensureInvoice(tx) {
 export async function onTransactionStatusChanged(tx) {
   if (!tx) return;
   const email = cleanEmail(tx.customerEmail);
+  if (isOperationalTest(email)) return;
   if (email) {
     const id = `customer_${hashId(email)}`;
     const totals = await rebuildCustomerTotals(email);
@@ -255,9 +257,12 @@ export async function getFinanceCenterData() {
       if (tx.status === "approved") await ensureInvoice(tx);
     }
   }
-  const [customers, invoices, alerts] = (!initialCustomers.length && transactions.length)
+  const [allCustomers, allInvoices, allAlerts] = (!initialCustomers.length && transactions.length)
     ? await Promise.all([readCollection("finance_customers"), readCollection("finance_invoices"), readCollection("finance_alerts")])
     : [initialCustomers, initialInvoices, initialAlerts];
+  const customers = allCustomers.filter((item) => !isOperationalTest(item.email));
+  const invoices = allInvoices.filter((item) => !isOperationalTest(item.customerEmail));
+  const alerts = allAlerts.filter((item) => !/(payments-smoke|finance-e2e)@blackvision\.com\.br/i.test(item.message || ""));
   return {
     source: "blackvision",
     summary: summarize(transactions, customers, invoices, alerts),
