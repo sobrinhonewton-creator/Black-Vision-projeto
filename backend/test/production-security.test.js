@@ -60,6 +60,7 @@ test("preflight aceita somente o dominio oficial", async () => {
   assert.equal(allowed.status, 204);
   assert.equal(allowed.headers.get("access-control-allow-origin"), frontendOrigin);
   assert.match(allowed.headers.get("access-control-allow-methods"), /POST/);
+  assert.match(allowed.headers.get("access-control-allow-methods"), /PATCH/);
   assert.match(allowed.headers.get("access-control-allow-headers"), /Authorization/i);
 
   const denied = await fetch(`${baseUrl}/api/auth/login`, {
