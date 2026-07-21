@@ -27,15 +27,26 @@ Repositório Frontend da Black Vision reconstruído em React + Vite.
    ```
 
 2. **Configure as Variáveis de Ambiente:**
-   Copie o arquivo `.env.example` para `.env` e ajuste:
+   Copie os arquivos de exemplo para `.env` e ajuste:
    ```bash
    cp .env.example .env
+   cp backend/.env.example backend/.env
    ```
    *Certifique-se de definir a `VITE_API_URL` com a URL do seu backend local (Ex: http://localhost:3333).*
 
 3. **Inicie o Servidor de Desenvolvimento:**
    ```bash
    npm run dev
+   ```
+
+4. **Inicie o backend local em outro terminal:**
+   ```bash
+   npm run backend:dev
+   ```
+
+5. **Execute os testes do backend:**
+   ```bash
+   npm test
    ```
 
 ## Deploy
