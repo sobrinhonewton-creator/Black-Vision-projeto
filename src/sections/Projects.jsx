@@ -169,14 +169,14 @@ export default function Projects() {
 
       <div className="container projects-showcase__inner">
         <header className={`projects-intro fade-up ${inView ? 'visible' : ''}`}>
-          <div className="projects-eyebrow"><span>03</span> — Projetos</div>
+          <div className="projects-eyebrow"><span>03</span> — Portfólio BlackVision</div>
           <h2 id="projects-title" className="projects-title">
-            Não precisa acreditar na gente.
-            <em>Veja o que criamos.</em>
+            <span>Projetos reais, criados para</span>
+            <em>fortalecer marcas e negócios.</em>
           </h2>
           <p className="projects-description">
-            Cada projeto nasce de uma necessidade real e se transforma em uma experiência digital
-            com identidade, clareza e um próximo passo.
+            Uma seleção de experiências digitais desenvolvidas pela BlackVision, unindo estratégia,
+            design e tecnologia para gerar autoridade, clareza e novas oportunidades.
           </p>
         </header>
 
@@ -283,7 +283,7 @@ export default function Projects() {
               <div>
                 <span>{selectedProject.category} · {selectedProject.location}</span>
                 <h3 id="project-modal-title">{selectedProject.title}</h3>
-                <p>Captura da landing page criada pela BlackVision.</p>
+                <p>Visualização da landing page desenvolvida pela BlackVision.</p>
               </div>
               <button
                 ref={closeButtonRef}
