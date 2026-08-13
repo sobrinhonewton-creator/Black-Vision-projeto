@@ -6,6 +6,7 @@ const WA_LINK =
 const NAV_LINKS = [
   ['Soluções',      'solutions'],
   ['Como Funciona', 'process'],
+  ['Projetos',      'projects'],
   ['Planos',        'pricing'],
   ['Resultados',    'testimonials'],
   ['Contato',       'contact'],

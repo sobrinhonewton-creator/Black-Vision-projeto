@@ -9,6 +9,7 @@ import { trackPageView } from "./services/tracking";
 import './styles/blackvision.css'
 import './styles/pricing.css'
 import './styles/rebrand.css'
+import './styles/projects.css'
 
 import Header       from './components/Header.jsx'
 import Footer       from './components/Footer.jsx'
@@ -17,6 +18,7 @@ import WhatsAppFloat from './components/WhatsAppFloat.jsx'
 import Hero          from './sections/Hero.jsx'
 import Solutions     from './sections/Solutions.jsx'
 import Process       from './sections/Process.jsx'
+import Projects      from './sections/Projects.jsx'
 import About         from './sections/About.jsx'
 import PricingSection from './sections/PricingSection.jsx'
 import Testimonials  from './sections/Testimonials.jsx'
@@ -76,6 +78,7 @@ export default function App() {
             <Hero />
             <Solutions />
             <Process />
+            <Projects />
             <About />
             <PricingSection />
             <Testimonials />
