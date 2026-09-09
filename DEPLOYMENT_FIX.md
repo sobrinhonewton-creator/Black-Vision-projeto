@@ -20,7 +20,7 @@ O frontend não escolhe mais o gateway por variável. O método define o provedo
 URL:
 
 ```text
-https://black-vision-backend-production.up.railway.app/api/webhooks/stripe
+https://blackvision-backend-equipe-blackvision.vercel.app/api/webhooks/stripe
 ```
 
 Eventos necessários:
@@ -37,7 +37,7 @@ Boleto não deve liberar entrega em `checkout.session.completed` quando `payment
 URL:
 
 ```text
-https://black-vision-backend-production.up.railway.app/api/webhooks/mercadopago
+https://blackvision-backend-equipe-blackvision.vercel.app/api/webhooks/mercadopago
 ```
 
 O webhook valida `x-signature`, `x-request-id` e `data.id` com o validador oficial do SDK.

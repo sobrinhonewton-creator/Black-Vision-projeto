@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { MercadoPagoConfig, Payment, WebhookSignatureValidator } from "mercadopago";
 
-const DEFAULT_BACKEND_URL = "https://black-vision-backend-production.up.railway.app";
+const DEFAULT_BACKEND_URL = "https://blackvision-backend-equipe-blackvision.vercel.app";
 
 function getClient() {
   const token = String(process.env.MP_ACCESS_TOKEN || "").trim();

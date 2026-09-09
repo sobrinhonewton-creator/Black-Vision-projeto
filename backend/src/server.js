@@ -51,6 +51,19 @@ app.get("/health", (_, res) => res.json({
   env: process.env.NODE_ENV,
 }));
 
+app.get("/internal/finance-alerts", async (req, res, next) => {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.get("authorization") !== `Bearer ${secret}`) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    return res.json(await scanOperationalAlerts());
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.use("/api/auth",     authRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/content",  contentRoutes);
@@ -68,14 +81,18 @@ app.use((err, req, res, _next) => {
   res.status(err.status || 500).json({ message: err.message || "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Black Vision API rodando na porta ${PORT}`);
-  console.log(`   Frontend:  ${process.env.FRONTEND_URL}`);
-  console.log(`   Backend:   ${process.env.BACKEND_URL}`);
-  console.log("   Gateway:   Stripe (cartão/boleto) + Mercado Pago (PIX)\n");
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Black Vision API rodando na porta ${PORT}`);
+    console.log(`   Frontend:  ${process.env.FRONTEND_URL}`);
+    console.log(`   Backend:   ${process.env.BACKEND_URL}`);
+    console.log("   Gateway:   Stripe (cartão/boleto) + Mercado Pago (PIX)\n");
+  });
 
-const alertTimer = setInterval(() => {
-  scanOperationalAlerts().catch((error) => console.warn("[Finance alerts]", error.message));
-}, 60 * 60 * 1000);
-alertTimer.unref();
+  const alertTimer = setInterval(() => {
+    scanOperationalAlerts().catch((error) => console.warn("[Finance alerts]", error.message));
+  }, 60 * 60 * 1000);
+  alertTimer.unref();
+}
+
+export default app;

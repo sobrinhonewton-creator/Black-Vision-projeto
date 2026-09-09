@@ -3,6 +3,7 @@
  */
 
 import { Router } from "express";
+import { waitUntil } from "@vercel/functions";
 import { processStripeWebhook } from "../services/stripe.js";
 import { getMPStatus, processMPWebhook } from "../services/mercadopago.js";
 import { updateTransactionStatus } from "../services/transactionLog.js";
@@ -83,9 +84,7 @@ router.post("/mercadopago", (req, res) => {
     return res.status(401).json({ message: "Assinatura Mercado Pago inválida" });
   }
 
-  res.status(200).json({ received: true });
-
-  queueMicrotask(async () => {
+  const processing = (async () => {
     try {
       if (event.type !== "payment" && event.action !== "payment.updated") return;
       const result = await getMPStatus(event.id);
@@ -97,7 +96,13 @@ router.post("/mercadopago", (req, res) => {
     } catch (error) {
       console.error("[Mercado Pago webhook] processamento falhou", { id: event.id, message: error.message });
     }
-  });
+  })();
+
+  if (process.env.VERCEL) {
+    waitUntil(processing);
+  }
+
+  return res.status(200).json({ received: true });
 });
 
 export default router;

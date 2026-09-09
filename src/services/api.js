@@ -5,7 +5,7 @@
 
 import axios from "axios";
 
-export const PRODUCTION_API = "https://black-vision-backend-production.up.railway.app";
+export const PRODUCTION_API = "https://blackvision-backend-equipe-blackvision.vercel.app";
 
 export const API_BASE =
   import.meta.env.VITE_API_URL ||
