@@ -50,7 +50,7 @@ const PROJECTS = [
 ]
 
 const TRANSITION_MS = 720
-const AUTO_ROTATE_MS = 3800
+const AUTO_ROTATE_MS = 3000
 
 function ArrowIcon({ direction = 'right' }) {
   const transform = direction === 'left' ? 'rotate(180 12 12)' : undefined
@@ -73,7 +73,6 @@ export default function Projects() {
   const [sectionRef, inView] = useInView({ threshold: 0.16 })
   const [activeIndex, setActiveIndex] = useState(0)
   const [leavingIndex, setLeavingIndex] = useState(null)
-  const [hovered, setHovered] = useState(false)
   const [userPaused, setUserPaused] = useState(false)
   const [reduceMotion, setReduceMotion] = useState(false)
   const [selectedProject, setSelectedProject] = useState(null)
@@ -120,17 +119,16 @@ export default function Projects() {
   }, [activateProject, activeIndex])
 
   useEffect(() => {
-    if (!inView || hovered || userPaused || reduceMotion || selectedProject || leavingIndex !== null) {
+    if (!inView || userPaused || reduceMotion || selectedProject) {
       return undefined
     }
 
     const timer = window.setTimeout(showNext, AUTO_ROTATE_MS)
     return () => window.clearTimeout(timer)
-  }, [hovered, inView, leavingIndex, reduceMotion, selectedProject, showNext, userPaused])
+  }, [inView, reduceMotion, selectedProject, showNext, userPaused])
 
   const openProject = (project, event) => {
     lastTriggerRef.current = event.currentTarget
-    setUserPaused(true)
     setSelectedProject(project)
   }
 
@@ -182,9 +180,6 @@ export default function Projects() {
 
         <div
           className={`projects-stage fade-up delay-2 ${inView ? 'visible' : ''}`}
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
-          onFocusCapture={() => setUserPaused(true)}
         >
           <div className="projects-deck" aria-live="polite">
             {PROJECTS.map((project, index) => {
